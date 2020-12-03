@@ -1,0 +1,9 @@
+.git
+antifier_package*
+build_*
+old-scripts
+usb_dump
+*.bat
+*.exe
+.idea
+T1942

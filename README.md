@@ -4,7 +4,7 @@ Home page: https://github.com/john-38787364/antifier
 
 ## Simulation with keyboard controls
 
-Start simulation with
+### Start simulation with
 
 `python antifier.py -l -c power_calc_factors_fortius.txt -s`
 
@@ -19,3 +19,12 @@ Start simulation with
 * e: Increase heart rate by 1 beat / minute
 * d: Decrease heart rate by 1 beat / minute
 
+## Docker
+
+Build image:
+
+`docker build --tag antifier .`
+
+Run command in container:
+
+`docker run --device=/dev/ttyS3 -t -i antifier python antifier.py -l -c power_calc_factors_fortius.txt`
