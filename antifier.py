@@ -10,11 +10,18 @@ import os
 import threading
 import Tkinter
 import pickle
+#from pynput import keyboard
 from Tkinter import *
 from tkMessageBox import *
 
 from datetime import datetime
 import argparse
+
+#global KeyPoller
+
+#from classes import KeyPoller 
+
+
 
 
 if os.name == 'posix':
@@ -42,6 +49,10 @@ runoff_loop_running = False
 
 filename = "Head_unit_setup.txt"
 
+#speed, pedecho, heart_rate, force_index, cadence = 30, 0, 120, 5, 70
+current_speed, current_heart_rate, current_cadence = 0, 100, 0
+
+
 try:
   f = open(filename, 'r')
 except IOError:
@@ -64,6 +75,80 @@ ENTER = fileAsList[3]
 CANCEL = fileAsList[4]
 
 f.close()
+
+
+
+global isWindows
+
+isWindows = False
+try:
+    from win32api import STD_INPUT_HANDLE
+    from win32console import GetStdHandle, KEY_EVENT, ENABLE_ECHO_INPUT, ENABLE_LINE_INPUT, ENABLE_PROCESSED_INPUT
+    isWindows = True
+except ImportError as e:
+    import sys
+    import select
+    import termios
+
+
+class KeyPoller:
+    def __enter__(self):
+        global isWindows
+        if isWindows:
+            self.readHandle = GetStdHandle(STD_INPUT_HANDLE)
+            self.readHandle.SetConsoleMode(ENABLE_LINE_INPUT|ENABLE_ECHO_INPUT|ENABLE_PROCESSED_INPUT)
+
+            self.curEventLength = 0
+            self.curKeysLength = 0
+
+            self.capturedChars = []
+        else:
+            # Save the terminal settings
+            self.fd = sys.stdin.fileno()
+            self.new_term = termios.tcgetattr(self.fd)
+            self.old_term = termios.tcgetattr(self.fd)
+
+            # New terminal setting unbuffered
+            self.new_term[3] = (self.new_term[3] & ~termios.ICANON & ~termios.ECHO)
+            termios.tcsetattr(self.fd, termios.TCSAFLUSH, self.new_term)
+
+        return self
+
+    def __exit__(self, type, value, traceback):
+        if isWindows:
+            pass
+        else:
+            termios.tcsetattr(self.fd, termios.TCSAFLUSH, self.old_term)
+
+    def poll(self):
+        if isWindows:
+            if not len(self.capturedChars) == 0:
+                return self.capturedChars.pop(0)
+
+            eventsPeek = self.readHandle.PeekConsoleInput(10000)
+
+            if len(eventsPeek) == 0:
+                return None
+
+            if not len(eventsPeek) == self.curEventLength:
+                for curEvent in eventsPeek[self.curEventLength:]:
+                    if curEvent.EventType == KEY_EVENT:
+                        if ord(curEvent.Char) == 0 or not curEvent.KeyDown:
+                            pass
+                        else:
+                            curChar = str(curEvent.Char)
+                            self.capturedChars.append(curChar)
+                self.curEventLength = len(eventsPeek)
+
+            if not len(self.capturedChars) == 0:
+                return self.capturedChars.pop(0)
+            else:
+                return None
+        else:
+            dr,dw,de = select.select([sys.stdin], [], [], 0)
+            if not dr == []:
+                return sys.stdin.read(1)
+            return None
 
 
 class PowerFactor_Window:
@@ -489,8 +574,34 @@ class Window(Frame):
 
   def Start(self):
     
+    def poller():
+      global current_speed, current_cadence, current_heart_rate, KeyPoller
+      with KeyPoller() as keyPoller:
+        print ('poller thread started')
+        while True:
+          c = keyPoller.poll()
+          if not c is None:
+            if c == "q":
+              print "Increasing speed"
+              current_speed = current_speed + 1
+            if c == "a":
+              print "Decreasing speed"
+              current_speed = current_speed - 1
+            if c == "w":
+              print "Increasing cadence"
+              current_cadence = current_cadence + 1
+            if c == "s":
+              print "Decreasing cadence"
+              current_cadence = current_cadence - 1
+            if c == "e":
+              print "Increasing HR"
+              current_heart_rate = current_heart_rate + 1
+            if c == "d":
+              print "Decreasing HR"
+              current_heart_rate = current_heart_rate - 1
+
     def run():
-      global dev_ant, dev_trainer, simulatetrainer, switch, power_curve
+      global dev_ant, dev_trainer, simulatetrainer, switch, power_curve, current_speed, current_cadence, current_heartrate
       if power_curve == "":
         if not headless: 
           self.PowerCurveVariable.set("Choose a power curve under setup menu")
@@ -543,10 +654,11 @@ class Window(Frame):
           last_measured_time = time.time() * 1000
           if eventcounter >= 256:
             eventcounter = 0
+
           ###TRAINER- SHOULD WRITE THEN READ 70MS LATER REALLY
           ####################GET DATA FROM TRAINER####################
           if simulatetrainer: 
-            speed, pedecho, heart_rate, force_index, cadence = 20, 0, 70, 5, 90
+            speed, pedecho, heart_rate, force_index, cadence = current_speed, 0, current_heart_rate, 5, current_cadence
           else:
             speed, pedecho, heart_rate, force_index, cadence = trainer.receive(dev_trainer) #get data from device
           if speed == "Not Found":
@@ -764,7 +876,7 @@ class Window(Frame):
             self.PowerVariable.set(calc_power)
             self.ResistanceLevelVariable.set(resistance_level)
           elif eventcounter % 4 == 0:
-            print "Power %sW, HR %s, Cadence %s, Resistance %s" % (calc_power, heart_rate, cadence, resistance_level)
+            print "Power %sW, HR %s, Cadence %s, Resistance %s, Speed %s" % (calc_power, heart_rate, cadence, resistance_level, current_speed)
             
       except KeyboardInterrupt:
         print "Stopped"
@@ -785,7 +897,16 @@ class Window(Frame):
       thread = threading.Thread(target=run)  
       thread.start() 
     else:
-      run()
+      print "not headless"
+      ##run()
+      thread = threading.Thread(target=run)  
+      thread.start() 
+      print "Starting 2nd thread..."
+      thread2 = threading.Thread(target=poller)  
+      thread2.start() 
+      thread.join()
+      thread2.join()
+
 
 def on_closing():#handle for window closing- stop loops
   global switch
