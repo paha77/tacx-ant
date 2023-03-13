@@ -1,0 +1,13 @@
+version: "3.5"
+services:
+    antifier:
+        privileged: true
+        tty: true
+        build:
+            context: ./
+            dockerfile: ./Dockerfile
+        working_dir: /antifier
+        volumes:
+            - ./:/antifier
+            - /dev/serial/by-id/usb-Dynastream_Innovations_ANT_USB-m_Stick_106-if00-port0:/dev/ttyUSB0
+
