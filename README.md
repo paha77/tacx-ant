@@ -18,6 +18,8 @@ Or run it in Docker with
 
 ## Keyboard controls
 
+When run in an interactive terminal, `antifier.py` displays a colorful responsive text dashboard with the current broadcast values and controls. It falls back to a compact one-line status when stdout is not a terminal or `ANTIFIER_DEBUG=1` is enabled.
+
 * q: Increase power by 5 W
 * a: Decrease power by 5 W
 * w: Increase cadence by 1 rpm
