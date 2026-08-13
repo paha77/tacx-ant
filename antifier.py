@@ -13,6 +13,11 @@ import ant
 
 DEBUG = os.environ.get("ANTIFIER_DEBUG", "").lower() in ("1", "true", "yes", "on")
 RUNNING = True
+FEC_MANUFACTURER_ID = int(os.environ.get("ANTIFIER_FEC_MANUFACTURER_ID", "89"), 0)
+FEC_MODEL_NUMBER = int(os.environ.get("ANTIFIER_FEC_MODEL_NUMBER", "33669"), 0)
+FEC_HARDWARE_REVISION = int(os.environ.get("ANTIFIER_FEC_HARDWARE_REVISION", "1"), 0)
+FEC_SOFTWARE_REVISION = int(os.environ.get("ANTIFIER_FEC_SOFTWARE_REVISION", "1"), 0)
+FEC_SERIAL_NUMBER = int(os.environ.get("ANTIFIER_FEC_SERIAL_NUMBER", "1"), 0)
 ANSI_RE = re.compile(r"\033\[[0-9;]*m")
 STYLE_TAG_RE = re.compile(r"\{[a-z_]+\}")
 ANSI = {
@@ -338,6 +343,32 @@ def build_fec_general_page(started_at, distance):
   return [0x10, 0x19, elapsed_quarters, distance_byte, 0x00, 0x00, 0x00, 0x30]
 
 
+def build_fec_manufacturer_page():
+  return [
+    0x50,
+    0xff,
+    0xff,
+    FEC_HARDWARE_REVISION & 0xff,
+    FEC_MANUFACTURER_ID & 0xff,
+    (FEC_MANUFACTURER_ID >> 8) & 0xff,
+    FEC_MODEL_NUMBER & 0xff,
+    (FEC_MODEL_NUMBER >> 8) & 0xff,
+  ]
+
+
+def build_fec_product_page():
+  return [
+    0x51,
+    0xff,
+    0xff,
+    FEC_SOFTWARE_REVISION & 0xff,
+    FEC_SERIAL_NUMBER & 0xff,
+    (FEC_SERIAL_NUMBER >> 8) & 0xff,
+    (FEC_SERIAL_NUMBER >> 16) & 0xff,
+    (FEC_SERIAL_NUMBER >> 24) & 0xff,
+  ]
+
+
 def build_fec_trainer_page(event_count, state, accumulated_power):
   power = clamp(state.power, 0, 4093)
   cadence = clamp(state.cadence, 0, 253)
@@ -468,9 +499,9 @@ def run_broadcaster(dev_ant):
         now = time.time()
 
         if event_count % 66 in (0, 1):
-          fec_page = [0x50, 0xff, 0xff, 0x01, 0x0f, 0x00, 0x85, 0x83]
+          fec_page = build_fec_manufacturer_page()
         elif event_count % 66 in (32, 33):
-          fec_page = [0x51, 0xff, 0xff, 0x01, 0x01, 0x00, 0x00, 0x00]
+          fec_page = build_fec_product_page()
         elif event_count % 3 == 0:
           fec_page = build_fec_general_page(started_at, distance)
         else:

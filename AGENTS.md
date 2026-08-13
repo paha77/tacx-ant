@@ -84,6 +84,20 @@ Run Docker service:
 docker compose up antifier
 ```
 
+## Zwift FE-C Pairing Identity
+
+Zwift does not receive a free-form custom device name from this ANT+ FE-C broadcaster. It typically labels the pairing entry from ANT+ profile metadata such as manufacturer ID, FE-C device number, model/product data, and serial fields. A label like `Peter's ANT+ dongle` is not possible through the current ANT+ FE-C pages unless Zwift itself provides a rename/alias feature.
+
+The current code makes the FE-C identity metadata configurable through environment variables:
+- `ANTIFIER_FEC_DEVICE_NUMBER` defaults to `207`.
+- `ANTIFIER_FEC_MANUFACTURER_ID` defaults to `89` (Tacx).
+- `ANTIFIER_FEC_MODEL_NUMBER` defaults to `33669`.
+- `ANTIFIER_FEC_HARDWARE_REVISION` defaults to `1`.
+- `ANTIFIER_FEC_SOFTWARE_REVISION` defaults to `1`.
+- `ANTIFIER_FEC_SERIAL_NUMBER` defaults to `1`.
+
+`ant.py` uses these values during FE-C channel setup, and `antifier.py` uses the same values while broadcasting manufacturer/product pages. If Zwift still shows an old label, restart Zwift and forget/unpair the cached trainer entry before rescanning.
+
 ## Verification Already Performed
 
 During the Python 3 migration, these checks passed:
@@ -92,6 +106,11 @@ During the Python 3 migration, these checks passed:
 - `docker compose build` using `python:3.14.6`.
 - Python 3.14.6 container compile check over the full repo.
 - Python 3.14.6 container import check for `usb.core`, `serial`, `ant`, and `antifier`.
+
+During the FE-C identity metadata update, this check passed:
+- `PYTHONPYCACHEPREFIX=/tmp/tacx-ant-pycache python3 -m compileall ant.py antifier.py`.
+
+The plain `python3 -m compileall ant.py antifier.py` command could not write bytecode because the existing local `__pycache__` files are not writable in this workspace. That was a cache permission issue, not a syntax failure.
 
 Hardware behavior was not verified because it requires a physical ANT+ dongle and receiver.
 

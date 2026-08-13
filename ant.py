@@ -3,6 +3,40 @@ import binascii, re, os, usb.core, glob, time, platform
 if platform.system() == 'Linux':
   import serial
 
+
+def env_int(name, default):
+  return int(os.environ.get(name, str(default)), 0)
+
+
+def ant_message(message_id, payload):
+  data = [0xa4, len(payload), message_id] + payload
+  checksum = 0
+  for value in data:
+    checksum ^= value
+  data.append(checksum)
+  return " ".join(hex(value)[2:].zfill(2) for value in data) + " 00 00"
+
+
+def fec_device_number():
+  return env_int("ANTIFIER_FEC_DEVICE_NUMBER", 207) & 0xffff
+
+
+def fec_manufacturer_page():
+  manufacturer_id = env_int("ANTIFIER_FEC_MANUFACTURER_ID", 89) & 0xffff
+  model_number = env_int("ANTIFIER_FEC_MODEL_NUMBER", 33669) & 0xffff
+  hardware_revision = env_int("ANTIFIER_FEC_HARDWARE_REVISION", 1) & 0xff
+  return [
+    0x50,
+    0xff,
+    0xff,
+    hardware_revision,
+    manufacturer_id & 0xff,
+    (manufacturer_id >> 8) & 0xff,
+    model_number & 0xff,
+    (model_number >> 8) & 0xff,
+  ]
+
+
 def calc_checksum(message):#calulate message checksum
   pattern = re.compile(r'[\W_]+')
   message=pattern.sub('', message)
@@ -92,14 +126,15 @@ def calibrate(dev_ant, debug):
   send_ant(stringl,dev_ant, debug)
   
 def master_channel_config(dev_ant, debug):
+  device_number = fec_device_number()
   stringl=[
   "a4 03 42 00 10 00 f5 00 00",#[42] assign channel, [00] 0, [10] type 10 bidirectional transmit, [00] network number 0, [f5] extended assignment
-  "a4 05 51 00 cf 00 11 05 2b 00 00",#[51] set channel ID, [00] number 0 (wildcard search) , [cf] device number 207, [00] pairing request (off), [11] device type fec, [05] transmission type  (page 18 and 66 Protocols) 00000101 - 01= independent channel, 1=global data pages used
+  ant_message(0x51, [0x00, device_number & 0xff, (device_number >> 8) & 0xff, 0x11, 0x05]),#[51] set channel ID, [00] channel 0, device number, [11] device type fec, [05] transmission type
   "a4 02 45 00 39 da 00 00",#[45] set channel freq, [00] transmit channel on network #0, [39] freq 2400 + 57 x 1 Mhz= 2457 Mhz
   "a4 03 43 00 00 20 c4 00 00",#[43] set messaging period, [00] channel #0, [f61f] = 32768/8182(f61f) = 4Hz (The channel messaging period in seconds * 32768. Maximum messaging period is ~2 seconds. )
   "a4 02 60 00 03 c5 00 00",#[60] set transmit power, [00] channel #0, [03] 0 dBm
   "a4 01 4b 00 ee 00 00",#open channel #0
-  "a4 09 4e 00 50 ff ff 01 59 00 85 83 ed 00 00",#broadcast manufacturer's data #FitSDKRelease_20.50.00.zip profile.xlsx D00001198_-_ANT+_Common_Data_Pages_Rev_3.1%20.pdf page 28 byte 4,5,6,7- 15=dynastream, 89=tacx
+  ant_message(0x4e, [0x00] + fec_manufacturer_page()),#broadcast manufacturer's data
   ]
   send_ant(stringl, dev_ant, debug)
 
