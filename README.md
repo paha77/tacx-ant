@@ -31,7 +31,7 @@ When run in an interactive terminal, `antifier.py` displays a colorful responsiv
 
 ## Zwift pairing identity
 
-Zwift does not receive a free-form FE-C device name from this script. It usually labels the pairing entry from ANT+ profile metadata such as the FE-C device number, manufacturer, model, product, and serial fields.
+Zwift does not receive a free-form FE-C or heart-rate device name from this script. It usually labels the pairing entry from ANT+ profile metadata such as the device number, manufacturer, model, product, and serial fields.
 
 By default the FE-C broadcast uses Tacx manufacturer metadata. You can override the values before starting the broadcaster:
 
@@ -40,6 +40,16 @@ ANTIFIER_FEC_DEVICE_NUMBER=207 \
 ANTIFIER_FEC_MANUFACTURER_ID=89 \
 ANTIFIER_FEC_MODEL_NUMBER=33669 \
 ANTIFIER_FEC_SERIAL_NUMBER=1 \
+python3 antifier.py
+```
+
+The heart-rate broadcast also has configurable identity metadata. Its default device number is `365`, and the default serial metadata is non-zero so Zwift should not show the HR sensor as `[0]`.
+
+```bash
+ANTIFIER_HR_DEVICE_NUMBER=365 \
+ANTIFIER_HR_MANUFACTURER_ID=89 \
+ANTIFIER_HR_MODEL_NUMBER=120 \
+ANTIFIER_HR_SERIAL_NUMBER=365 \
 python3 antifier.py
 ```
 

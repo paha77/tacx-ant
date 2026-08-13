@@ -13,11 +13,6 @@ import ant
 
 DEBUG = os.environ.get("ANTIFIER_DEBUG", "").lower() in ("1", "true", "yes", "on")
 RUNNING = True
-FEC_MANUFACTURER_ID = int(os.environ.get("ANTIFIER_FEC_MANUFACTURER_ID", "89"), 0)
-FEC_MODEL_NUMBER = int(os.environ.get("ANTIFIER_FEC_MODEL_NUMBER", "33669"), 0)
-FEC_HARDWARE_REVISION = int(os.environ.get("ANTIFIER_FEC_HARDWARE_REVISION", "1"), 0)
-FEC_SOFTWARE_REVISION = int(os.environ.get("ANTIFIER_FEC_SOFTWARE_REVISION", "1"), 0)
-FEC_SERIAL_NUMBER = int(os.environ.get("ANTIFIER_FEC_SERIAL_NUMBER", "1"), 0)
 ANSI_RE = re.compile(r"\033\[[0-9;]*m")
 STYLE_TAG_RE = re.compile(r"\{[a-z_]+\}")
 ANSI = {
@@ -36,6 +31,26 @@ ANSI = {
   "bright_magenta": "\033[95m",
   "bright_red": "\033[91m",
 }
+
+
+def env_int(name, default):
+  return int(os.environ.get(name, str(default)), 0)
+
+
+FEC_MANUFACTURER_ID = env_int("ANTIFIER_FEC_MANUFACTURER_ID", 89)
+FEC_MODEL_NUMBER = env_int("ANTIFIER_FEC_MODEL_NUMBER", 33669)
+FEC_HARDWARE_REVISION = env_int("ANTIFIER_FEC_HARDWARE_REVISION", 1)
+FEC_SOFTWARE_REVISION = env_int("ANTIFIER_FEC_SOFTWARE_REVISION", 1)
+FEC_SERIAL_NUMBER = env_int("ANTIFIER_FEC_SERIAL_NUMBER", 1)
+HR_DEVICE_NUMBER = env_int("ANTIFIER_HR_DEVICE_NUMBER", 365)
+HR_MANUFACTURER_ID = env_int("ANTIFIER_HR_MANUFACTURER_ID", 89)
+HR_MODEL_NUMBER = env_int("ANTIFIER_HR_MODEL_NUMBER", 120)
+HR_HARDWARE_REVISION = env_int("ANTIFIER_HR_HARDWARE_REVISION", 1)
+HR_SOFTWARE_REVISION = env_int("ANTIFIER_HR_SOFTWARE_REVISION", 1)
+HR_SERIAL_NUMBER = env_int(
+  "ANTIFIER_HR_SERIAL_NUMBER",
+  HR_DEVICE_NUMBER & 0xffff,
+)
 
 
 def request_stop(signum=None, frame=None):
@@ -405,9 +420,19 @@ def build_hr_page(event_count, state, hr_state):
   beat_time = int((hr_state["beat_time_ms"] - hr_state["cycle_started_ms"]) * 1.024) & 0xffff
 
   if event_count % 65 in (0, 1, 2, 3):
-    first_bytes = [0x02 + toggle, 0x0f, 0x01, 0x00]
+    first_bytes = [
+      0x02 + toggle,
+      HR_MANUFACTURER_ID & 0xff,
+      HR_SERIAL_NUMBER & 0xff,
+      (HR_SERIAL_NUMBER >> 8) & 0xff,
+    ]
   elif event_count % 65 in (31, 32, 33, 34):
-    first_bytes = [0x03 + toggle, 0x01, 0x01, 0x33]
+    first_bytes = [
+      0x03 + toggle,
+      HR_HARDWARE_REVISION & 0xff,
+      HR_SOFTWARE_REVISION & 0xff,
+      HR_MODEL_NUMBER & 0xff,
+    ]
   elif event_count % 65 in (11, 12, 13, 44):
     operating_time = int((time.time() - hr_state["started_at"]) / 2) & 0xffffff
     first_bytes = [
@@ -530,6 +555,12 @@ def main():
 
   if msg:
     print(msg)
+  print("HR sensor identity: device %d, manufacturer %d, model %d, serial %d" % (
+    HR_DEVICE_NUMBER & 0xffff,
+    HR_MANUFACTURER_ID & 0xff,
+    HR_MODEL_NUMBER & 0xff,
+    HR_SERIAL_NUMBER & 0xffff,
+  ))
 
   try:
     ant.antreset(dev_ant, DEBUG)
