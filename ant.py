@@ -27,7 +27,11 @@ def send_ant(stringl, dev_ant, debug):#send message string to dongle
     if debug == True: print(int(time.time()*1000), '>>', binascii.hexlify(send).decode("ascii"))#log data to console
     #if os.name == 'posix':
     if platform.system() == 'Linux':
-      dev_ant.write(send)
+      try:
+        dev_ant.write(send)
+      except Exception as e:
+        if debug: print("ANT WRITE ERROR", str(e))
+        return rtn
     else:
       try:
         dev_ant.write(0x01,send)
@@ -45,7 +49,8 @@ def read_ant(dev_ant, debug):
   trv = True #temp rtn value from ANT stick
   #if os.name == 'posix':
   if platform.system() == 'Linux':
-    dev_ant.timeout = 0.1
+    if dev_ant.timeout is None or dev_ant.timeout < 0.1:
+      dev_ant.timeout = 0.1
     try:
       read_val += binascii.hexlify(dev_ant.read(size=256)).decode("ascii")
     except Exception as e:
@@ -137,6 +142,28 @@ def antreset(dev_ant, debug):
   #  elif os.name == 'nt': read_val = binascii.hexlify(dev_ant.read(0x81,64))#
   send_ant(["a4 01 4a 00 ef 00 00"],dev_ant, debug)
 
+def is_ant_probe_reply(read_val):
+  if not read_val:
+    return False
+  if "a4016f20ea" in read_val or "a4016f00ca" in read_val:
+    return True
+  for reply in read_val:
+    if reply.startswith("a4"):
+      return True
+  return False
+
+def linux_ant_serial_ports():
+  ports = []
+  for p in glob.glob('/dev/serial/by-id/*'):
+    real_path = os.path.realpath(p)
+    label = os.path.basename(p).lower()
+    if 'ant' in label and real_path.startswith('/dev/ttyUSB') and real_path not in ports:
+      ports.append(real_path)
+  for p in glob.glob('/dev/ttyUSB*'):
+    if p not in ports:
+      ports.append(p)
+  return ports
+
 def get_ant(debug):
   msg=""
   dongles = {4104:"Suunto", 4105:"Garmin", 4100:"Older"}
@@ -189,16 +216,20 @@ def get_ant(debug):
   elif platform.system() == 'Linux':
     #Find ANT+ USB stick on serial (Linux)
     ant_stick_found = False
-    for p in glob.glob('/dev/ttyUSB*'):
-      dev_ant = serial.Serial(p, 19200, rtscts=True,dsrdtr=True)
-      read_val = send_ant(["a4 01 4a 00 ef 00 00"], dev_ant, False) #probe with reset command
-      if "a4016f20ea" in read_val or "a4016f00ca" in read_val:#found ANT+ stick
-        serial_port=p
-        ant_stick_found = True
-        msg = "Found ANT Stick"
-      else:
-        if debug: print(read_val)
-        dev_ant.close()#not correct reply to reset
+    for p in linux_ant_serial_ports():
+      try:
+        dev_ant = serial.Serial(p, 19200, timeout=0.1, rtscts=True, dsrdtr=True)
+        read_val = send_ant(["a4 01 4a 00 ef 00 00"], dev_ant, False) #probe with reset command
+        if is_ant_probe_reply(read_val):#found ANT+ stick
+          serial_port=p
+          ant_stick_found = True
+          msg = "Found ANT Stick"
+        else:
+          if debug: print(read_val)
+          dev_ant.close()#not correct reply to reset
+      except Exception as e:
+        if debug: print("Could not probe %s: %s" % (p, e))
+        continue
       if ant_stick_found == True  : break
 
     if ant_stick_found == False:

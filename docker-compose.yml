@@ -6,7 +6,8 @@ services:
             context: ./
             dockerfile: ./Dockerfile
         working_dir: /antifier
-        command: bash -c "python3 antifier.py -l -c power_calc_factors_fortius.txt -s"
+        stop_grace_period: 10s
+        command: ["python3", "antifier.py", "-l", "-c", "power_calc_factors_fortius.txt", "-s"]
         volumes:
             - ./:/antifier
 #            - /dev/serial/by-id/usb-Dynastream_Innovations_ANT_USB-m_Stick_106-if00-port0:/dev/ttyUSB0

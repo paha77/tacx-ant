@@ -7,6 +7,7 @@ import binascii
 import struct
 import platform, glob
 import os
+import signal
 import threading
 import tkinter as Tkinter
 import pickle
@@ -44,6 +45,18 @@ headless = args.headless
 
 switch = True
 runoff_loop_running = False
+
+
+def request_stop(signum=None, frame=None):
+  global switch
+  switch = False
+  if signum is not None:
+    print("Received signal %s, stopping..." % signum)
+
+
+if os.name == 'posix':
+  signal.signal(signal.SIGTERM, request_stop)
+  signal.signal(signal.SIGINT, request_stop)
 
 
 
@@ -103,8 +116,11 @@ class KeyPoller:
 
             self.capturedChars = []
         else:
-            # Save the terminal settings
             self.fd = sys.stdin.fileno()
+            if not sys.stdin.isatty():
+                self.fd = None
+                return self
+            # Save the terminal settings
             self.new_term = termios.tcgetattr(self.fd)
             self.old_term = termios.tcgetattr(self.fd)
 
@@ -117,7 +133,7 @@ class KeyPoller:
     def __exit__(self, type, value, traceback):
         if isWindows:
             pass
-        else:
+        elif self.fd is not None:
             termios.tcsetattr(self.fd, termios.TCSAFLUSH, self.old_term)
 
     def poll(self):
@@ -145,6 +161,8 @@ class KeyPoller:
             else:
                 return None
         else:
+            if self.fd is None:
+                return None
             dr,dw,de = select.select([sys.stdin], [], [], 0)
             if not dr == []:
                 return sys.stdin.read(1)
@@ -541,7 +559,10 @@ class Window(Frame):
       dev_ant, msg = ant.get_ant(debug)
       if not dev_ant:
         if not headless: self.ANTVariable.set(msg)
+        else: print(msg or "ANT Stick not found")
         return False
+      elif headless:
+        print(msg)
     if not headless: self.ANTVariable.set(msg)
 
 
@@ -575,10 +596,10 @@ class Window(Frame):
   def Start(self):
     
     def poller():
-      global current_speed, current_cadence, current_heart_rate, KeyPoller
+      global current_speed, current_cadence, current_heart_rate, KeyPoller, switch
       with KeyPoller() as keyPoller:
         print ('poller thread started')
-        while True:
+        while switch == True:
           c = keyPoller.poll()
           if not c is None:
             if c == "q":
@@ -880,8 +901,14 @@ class Window(Frame):
             
       except KeyboardInterrupt:
         print("Stopped")
+      except Exception as e:
+        print("Stopped after error: %s" % e)
+        switch = False
         
-      ant.antreset(dev_ant, debug)#reset dongle
+      try:
+        ant.antreset(dev_ant, debug)#reset dongle
+      except Exception as e:
+        print("Could not reset ANT dongle during shutdown: %s" % e)
       if os.name == 'posix':#close serial port to ANT stick on Linux
         dev_ant.close()
       if debug: print("stopped")
@@ -897,7 +924,7 @@ class Window(Frame):
       thread = threading.Thread(target=run)  
       thread.start() 
     else:
-      print("not headless")
+      print("Starting headless")
       ##run()
       thread = threading.Thread(target=run)  
       thread.start() 
