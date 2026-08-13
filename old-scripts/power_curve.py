@@ -1,5 +1,5 @@
-import ant, os, usb.core, time, binascii, T1932_calibration, sys
-import Tkinter as tkinter
+import ant, os, usb.core, time, binascii, T1932_calibration, sys, glob, serial
+import tkinter
 
 def update_status(label, status):
   label.config(text=status)
@@ -46,12 +46,12 @@ for idp in idpl:
     break
 
 if product == 0:
-  print "Trainer not found"
+  print("Trainer not found")
   sys.exit()
 
 #initialise TACX USB device
 byte_ints = [2,0,0,0] # will not read cadence until initialisation byte is sent
-byte_str = "".join(chr(n) for n in byte_ints)
+byte_str = bytes(byte_ints)
 dev.write(0x02,byte_str)
 time.sleep(1)
 
@@ -64,12 +64,12 @@ if os.name == 'nt':
     try:#check if in use
       stringl=["a4 01 4a 00 ef 00 00"]#reset system
       ant.send(stringl, dev_ant, debug)
-      print "Using Garmin dongle..."
+      print("Using Garmin dongle...")
     except usb.core.USBError:
-      print "Garmin Device is in use"
+      print("Garmin Device is in use")
       found_available_ant_stick = False
   except AttributeError:
-    print "No Garmin Device found"
+    print("No Garmin Device found")
     found_available_ant_stick = False
 
   if found_available_ant_stick == False:
@@ -80,16 +80,16 @@ if os.name == 'nt':
       try:#check if in use
         stringl=["a4 01 4a 00 ef 00 00"]#reset system
         ant.send(stringl, dev_ant, False)
-        print "Using Suunto dongle..."
+        print("Using Suunto dongle...")
       except usb.core.USBError:
-        print "Suunto Device is in use"
+        print("Suunto Device is in use")
         found_available_ant_stick = False
     except AttributeError:  
-      print "No Suunto Device found"
+      print("No Suunto Device found")
       found_available_ant_stick = False
 
   if found_available_ant_stick == False:
-    print "No available ANT+ device. Retry after quitting Garmin Express or other application that uses ANT+. If still fails then remove dongles for 10s then reinsert"
+    print("No available ANT+ device. Retry after quitting Garmin Express or other application that uses ANT+. If still fails then remove dongles for 10s then reinsert")
     sys.exit()
   
 
@@ -101,7 +101,7 @@ elif os.name == 'posix':
     dev_ant = serial.Serial(p, 19200, rtscts=True,dsrdtr=True)
     dev_ant.timeout = 0.1
     dev_ant.write(binascii.unhexlify("a4014a00ef0000")) #probe with reset command
-    reply = binascii.hexlify(dev_ant.read(size=256))
+    reply = binascii.hexlify(dev_ant.read(size=256)).decode("ascii")
     if reply == "a4016f20ea" or reply == "a4016f00ca":#found ANT+ stick
       serial_port=p
       ant_stick_found = True
@@ -109,12 +109,12 @@ elif os.name == 'posix':
     if ant_stick_found == True  : break
 
   if ant_stick_found == False:
-    print 'Could not find ANT+ device. Check output of "lsusb | grep 0fcf" and "ls /dev/ttyUSB*"'
+    print('Could not find ANT+ device. Check output of "lsusb | grep 0fcf" and "ls /dev/ttyUSB*"')
     sys.exit()
     
   
 else:
-  print "OS not Supported"
+  print("OS not Supported")
   sys.exit() 
 
 ant.calibrate(dev_ant)#calibrate ANT+ dongle
@@ -147,10 +147,10 @@ try:
     #add wait so we only send every 250ms
     try:
       #get power data
-      read_val = binascii.hexlify(dev_ant.read(0x81,64))
+      read_val = binascii.hexlify(dev_ant.read(0x81,64)).decode("ascii")
       if read_val[8:10]=="10":#a4 09 4e 00 10 ec ff 00 be 4e 00 00 10 #10 power page be 4e accumulated power 00 00 iunstant power
         power = int(read_val[22:24],16)*16 + int(read_val[20:22],16)
-        print read_val, power
+        print(read_val, power)
         power_meter = True
         
         
@@ -198,7 +198,7 @@ try:
         else:
           pedecho = 0
         byte_ints = [0x01, 0x08, 0x01, 0x00, r5, r6, pedecho, 0x00 ,0x02, 0x52, 0x10, 0x04]
-        byte_str = "".join(chr(n) for n in byte_ints)
+        byte_str = bytes(byte_ints)
         dev.write(0x02,byte_str)#send data to device
         
         if packets_rx % 50 == 0 and packets_rx > 150:
@@ -207,7 +207,7 @@ try:
             target_power = 50
             resistance_level += 1
           if resistance_level == 14:
-            print "Power calibration file created"
+            print("Power calibration file created")
             sys.exit()
           update_status(status_label, "Creating calibration file")
           update_status(instructions_label, "Aim for a target power of %s watts. It doesn't matter if you don't hit it exactly or can't achieve it at all!" % target_power)              

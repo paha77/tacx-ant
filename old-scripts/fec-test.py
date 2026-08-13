@@ -5,10 +5,10 @@ import re
 def add_little_endian(val1,val2):#add two strings together in little endian fashion e.g. "1b 01"
   intval = (int(val1[3:],16) * 256 + int(val1[0:2],16)) + (int(val2[3:],16) * 256 + int(val2[0:2],16))
   if intval>= (256 * 256): intval = 0 #rolls over at 65535
-  return hex(intval % 256)[2:].zfill(2) +" "+hex((intval - (intval % 256))/256)[2:].zfill(2)
+  return hex(intval % 256)[2:].zfill(2) +" "+hex((intval - (intval % 256))//256)[2:].zfill(2)
 
 def calc_checksum(message):#calulate message checksum
-  pattern = re.compile('[\W_]+')
+  pattern = re.compile(r'[\W_]+')
   message=pattern.sub('', message)
   byte = 0
   xor_value = int(message[byte*2:byte*2+2], 16)
@@ -25,7 +25,7 @@ def send(stringl):#send message string to dongle
   rtn = {}
   for string in stringl:
     i=0
-    send=""
+    send=b""
     while i<len(string):
       send = send + binascii.unhexlify(string[i:i+2])
       i=i+3
@@ -33,7 +33,7 @@ def send(stringl):#send message string to dongle
     ser.write(send)
 
     ser.timeout = 0.1
-    read_val = binascii.hexlify(ser.read(size=256))
+    read_val = binascii.hexlify(ser.read(size=256)).decode("ascii")
     #print "read off wire: ",read_val
     
     read_val_list = read_val.split("a4")#break reply into list of messsages
@@ -51,7 +51,7 @@ ser = serial.Serial('/dev/ttyUSB0', 19200, rtscts=True,dsrdtr=True)
 reply_message = ""
 no_bytes_to_find = 0
 
-print "Calibrating..."
+print("Calibrating...")
 stringl=[
 "a4 02 4d 00 54 bf 00 00",#request max channels
 "a4 01 4a 00 ef 00 00",#reset system
@@ -60,7 +60,7 @@ stringl=[
 ]
 send(stringl)
 
-print "FEC channel config..."
+print("FEC channel config...")
 stringl=[
 "a4 03 42 00 10 00 f5 00 00",#[42] assign channel, [00] 0, [10] type 10 bidirectional transmit, [00] network number 0, [f5] extended assignment
 "a4 05 51 00 01 00 11 05 e5 00 00",#[51] set channel ID, [00] number 0 (wildcard search) , [01] device number 1, [00] pairing request (off), [11] fec, [05] transmission type  (page 18 and 66 Protocols) 00000101 - 01= independent channel, 1=global data pages used
@@ -147,7 +147,7 @@ try:
           
         reply = send([newdata])
         if "grade" in reply:
-          print "Grade set to ",reply['grade'],"%"
+          print("Grade set to ", reply['grade'], "%")
         
         
         eventcounter += 1
@@ -165,4 +165,3 @@ stringl=["a4 01 4a 00 ef 00 00"]#reset system
 send(stringl)
 
 ser.close()
-

@@ -40,14 +40,14 @@ https://github.com/john-38787364/antifier/raw/master/antifier_package_x32.EXE
 Double click on the self extracting package and run by double clicking on the downloaded antifier.exe
 
 If you wish to run as a native python script then you will need to run :
-python.exe -m pip install pyusb numpy
+python.exe -m pip install pyusb pyserial numpy
 and to download libusb-win32-devel-filter:
 https://sourceforge.net/projects/libusb-win32/files/libusb-win32-releases/1.2.6.0/ 
 (or easier, use Zadig to install libusb driver)
 
 USAGE (GUI)
 Linux
-sudo python antifier.py
+sudo python3 antifier.py
 
 Windows
 1. Quit Garmin express if running
@@ -67,7 +67,7 @@ To ensure comparable training sessions, the trainer should exert the same relati
 
 USAGE (HEADLESS)
 Linux
-sudo python antifier.py -l -c power_calc_factors_imagic.txt (-s , -d)
+sudo python3 antifier.py -l -c power_calc_factors_imagic.txt (-s , -d)
 Stop with Ctrl-C
 
 OPTIONS

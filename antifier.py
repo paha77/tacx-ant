@@ -8,11 +8,11 @@ import struct
 import platform, glob
 import os
 import threading
-import Tkinter
+import tkinter as Tkinter
 import pickle
 #from pynput import keyboard
-from Tkinter import *
-from tkMessageBox import *
+from tkinter import *
+from tkinter.messagebox import *
 
 from datetime import datetime
 import argparse
@@ -536,7 +536,7 @@ class Window(Frame):
   def ScanForHW(self):
     global dev_trainer, dev_ant, simulatetrainer
     #get ant stick
-    if debug:print "get ant stick"
+    if debug:print("get ant stick")
     if not dev_ant:
       dev_ant, msg = ant.get_ant(debug)
       if not dev_ant:
@@ -546,22 +546,22 @@ class Window(Frame):
 
 
     if not headless: self.PowerFactorVariable.set(powerfactor)
-    if debug:print "get trainer"
+    if debug:print("get trainer")
     #find trainer model for Windows and Linux
     if not dev_trainer:
       #find trainer
       if simulatetrainer:
         if not headless: self.trainerVariable.set(u"Simulated Trainer")
-        else: print "Simulated Trainer"
+        else: print("Simulated Trainer")
       else:
         dev_trainer = trainer.get_trainer()
         if not dev_trainer:
           if not headless: self.trainerVariable.set("Trainer not detected")
-          else: print "Trainer not detected"
+          else: print("Trainer not detected")
           return False
         else:
           if not headless: self.trainerVariable.set("Trainer detected")
-          else: print "Trainer detected"
+          else: print("Trainer detected")
           trainer.initialise_trainer(dev_trainer)#initialise trainer
     
     if not headless: 
@@ -582,22 +582,22 @@ class Window(Frame):
           c = keyPoller.poll()
           if not c is None:
             if c == "q":
-              print "Increasing speed"
+              print("Increasing speed")
               current_speed = current_speed + 1
             if c == "a":
-              print "Decreasing speed"
+              print("Decreasing speed")
               current_speed = current_speed - 1
             if c == "w":
-              print "Increasing cadence"
+              print("Increasing cadence")
               current_cadence = current_cadence + 1
             if c == "s":
-              print "Decreasing cadence"
+              print("Decreasing cadence")
               current_cadence = current_cadence - 1
             if c == "e":
-              print "Increasing HR"
+              print("Increasing HR")
               current_heart_rate = current_heart_rate + 1
             if c == "d":
-              print "Decreasing HR"
+              print("Decreasing HR")
               current_heart_rate = current_heart_rate - 1
 
     def run():
@@ -615,18 +615,18 @@ class Window(Frame):
           self.StartAPPbutton.config(state="normal")
           self.StopAPPbutton.config(state="disabled")
           return
-      pc_sorted_keys = sorted(pc_dict.iterkeys())#-1,-0,2,3 etc.
-      if debug:print "reset ant stick"
+      pc_sorted_keys = sorted(pc_dict.keys())#-1,-0,2,3 etc.
+      if debug:print("reset ant stick")
       ant.antreset(dev_ant, debug)#reset dongle
-      if debug:print "calibrate ant stick"
+      if debug:print("calibrate ant stick")
       ant.calibrate(dev_ant, debug)#calibrate ANT+ dongle
-      if debug:print "calibrate ant stick FE-C"
+      if debug:print("calibrate ant stick FE-C")
       ant.master_channel_config(dev_ant, debug)#calibrate ANT+ channel FE-C
-      if debug: print "calibrate ant stick HR"
+      if debug: print("calibrate ant stick HR")
       ant.second_channel_config(dev_ant, debug)#calibrate ANT+ channel HR
       
       if not headless: self.RunoffButton.config(state='disabled')
-      else: print "Ctrl-C to exit"
+      else: print("Ctrl-C to exit")
       resistance=0#set initial resistance level
       speed,cadence,power,heart_rate=(0,)*4#initialise values
       grade = False
@@ -650,7 +650,7 @@ class Window(Frame):
       last_measured_time = time.time() * 1000
       try:
         while switch == True:
-          if debug == True: print "Running", round(time.time() * 1000 - last_measured_time)
+          if debug == True: print("Running", round(time.time() * 1000 - last_measured_time))
           last_measured_time = time.time() * 1000
           if eventcounter >= 256:
             eventcounter = 0
@@ -664,17 +664,17 @@ class Window(Frame):
           if speed == "Not Found":
             speed, pedecho, heart_rate, force_index, cadence = 0, 0, 0, 0, 0
             if not headless: self.trainerVariable.set('Cannot read from trainer')
-            else: print "Cannot read from trainer"
+            else: print("Cannot read from trainer")
           else:
             if not headless: self.trainerVariable.set("Trainer detected")
           #print force_index
           factors = pc_dict[pc_sorted_keys[force_index]]
           calc_power=int(speed*factors[0] + factors[1])
           if calc_power <0: calc_power = 0
-          if debug == True: print speed, pedecho, heart_rate, force_index, cadence, calc_power
+          if debug == True: print(speed, pedecho, heart_rate, force_index, cadence, calc_power)
           ####################SEND DATA TO TRAINER####################
           #send resistance data to trainer   
-          if debug == True: print datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],"GRADE", grade,"%"
+          if debug == True: print(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3], "GRADE", grade, "%")
           #set resistance level
           if not grade and not target_power:#if trainer not been been set a grade or target power
             grade = 0
@@ -746,7 +746,7 @@ class Window(Frame):
             newdata = '{0}{1}{2}'.format(newdata[:30], hex(int(power_msb_trainer_status_byte))[2:].zfill(2), newdata[32:])#set mixed trainer data power msb byte
             newdata = '{0}{1}{2}'.format(newdata[:36], ant.calc_checksum(newdata), newdata[38:])#recalculate checksum
           
-          if debug == True: print datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],"TRAINER DATA",newdata
+          if debug == True: print(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3], "TRAINER DATA", newdata)
           reply = ant.send_ant([newdata], dev_ant, debug)
           #reply = []
           #if rv[6:8]=="33":
@@ -758,7 +758,7 @@ class Window(Frame):
             target_power = False
             if not headless: self.SlopeVariable.set(round(grade,1))
             if not headless: self.TargetPowerVariable.set("")
-            if debug: print grade, matching[0]
+            if debug: print(grade, matching[0])
           else:
             matching = [s for s in reply if "a4094f0031" in s]#target watts
             # 0x31 a4094f00 31 ffffffffff5c02 72 is target power message in 0.25w 0x025c = 604 = 151W
@@ -858,7 +858,7 @@ class Window(Frame):
             hrdata = "a4 09 4e 01 "+hr_byte_0+" "+hr_byte_1+" "+hr_byte_2+" "+hr_byte_3+" "+hr_byte_4+" "+hr_byte_5+" "+hr_byte_6+" "+hr_byte_7+" 02 00 00"
             hrdata = "a4 09 4e 01 "+hr_byte_0+" "+hr_byte_1+" "+hr_byte_2+" "+hr_byte_3+" "+hr_byte_4+" "+hr_byte_5+" "+hr_byte_6+" "+hr_byte_7+" "+ant.calc_checksum(hrdata)+" 00 00"
             time.sleep(0.125)# sleep for 125ms
-            if debug == True: print datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],"HEART RATE",hrdata
+            if debug == True: print(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3], "HEART RATE", hrdata)
             ant.send_ant([hrdata], dev_ant, debug)
           ####################wait ####################
 
@@ -876,15 +876,15 @@ class Window(Frame):
             self.PowerVariable.set(calc_power)
             self.ResistanceLevelVariable.set(resistance_level)
           elif eventcounter % 4 == 0:
-            print "Power %sW, HR %s, Cadence %s, Resistance %s, Speed %s" % (calc_power, heart_rate, cadence, resistance_level, current_speed)
+            print("Power %sW, HR %s, Cadence %s, Resistance %s, Speed %s" % (calc_power, heart_rate, cadence, resistance_level, current_speed))
             
       except KeyboardInterrupt:
-        print "Stopped"
+        print("Stopped")
         
       ant.antreset(dev_ant, debug)#reset dongle
       if os.name == 'posix':#close serial port to ANT stick on Linux
         dev_ant.close()
-      if debug: print "stopped"
+      if debug: print("stopped")
       if not headless: self.RunoffButton.config(state='normal')
       
       with open("user_defaults",'wb') as handle:#save defaults
@@ -897,11 +897,11 @@ class Window(Frame):
       thread = threading.Thread(target=run)  
       thread.start() 
     else:
-      print "not headless"
+      print("not headless")
       ##run()
       thread = threading.Thread(target=run)  
       thread.start() 
-      print "Starting 2nd thread..."
+      print("Starting 2nd thread...")
       thread2 = threading.Thread(target=poller)  
       thread2.start() 
       thread.join()
@@ -931,7 +931,7 @@ if __name__ == "__main__":
   if headless:
     power_curve = args.power_curve
     if not power_curve:
-      print "Specify a power curve .txt file with -c switch"
+      print("Specify a power curve .txt file with -c switch")
     else:
       x = Window()
       if x.ScanForHW():

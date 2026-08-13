@@ -4,13 +4,13 @@ Home page: https://github.com/john-38787364/antifier
 
 ## Resetting USB after usage
 ### Run on host (not in Docker-Container)
-    python reset_usb.py /dev/bus/usb/001/002
+    python3 reset_usb.py /dev/bus/usb/001/002
 
 ## Simulation with keyboard controls
 
 Start simulation with
 
-`python antifier.py -l -c power_calc_factors_fortius.txt -s`
+`python3 antifier.py -l -c power_calc_factors_fortius.txt -s`
 
 * q: Increase speed by 1 km/h
 * a: Decrease speed by 1 km/h
@@ -22,4 +22,3 @@ Start simulation with
 
 * e: Increase heart rate by 1 beat / minute
 * d: Decrease heart rate by 1 beat / minute
-

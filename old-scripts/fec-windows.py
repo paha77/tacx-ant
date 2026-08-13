@@ -4,7 +4,7 @@ import sys,re
 
 
 def calc_checksum(message):#calulate message checksum
-  pattern = re.compile('[\W_]+')
+  pattern = re.compile(r'[\W_]+')
   message=pattern.sub('', message)
   byte = 0
   xor_value = int(message[byte*2:byte*2+2], 16)
@@ -21,18 +21,18 @@ def send(stringl):#send message string to dongle
   rtn = {}
   for string in stringl:
     i=0
-    send=""
+    send=b""
     while i<len(string):
       send = send + binascii.unhexlify(string[i:i+2])
       i=i+3
-    print ">>",binascii.hexlify(send)#log data to console
+    print(">>", binascii.hexlify(send).decode("ascii"))#log data to console
     #ser.write(send)
     dev.write(0x01,send)
 
     #ser.timeout = 0.1
     #read_val = binascii.hexlify(ser.read(size=256))
-    read_val = binascii.hexlify(dev.read(0x81,64))
-    print "read off wire: ",read_val
+    read_val = binascii.hexlify(dev.read(0x81,64)).decode("ascii")
+    print("read off wire: ", read_val)
     
     read_val_list = read_val.split("a4")#break reply into list of messsages
     for rv in read_val_list:
@@ -52,10 +52,10 @@ try:
     stringl=["a4 01 4a 00 ef 00 00"]#reset system
     send(stringl)
   except usb.core.USBError:
-    print "Garmin Device is in use"
+    print("Garmin Device is in use")
     found_available_ant_stick = False
 except AttributeError:
-  print "No Garmin Device found"
+  print("No Garmin Device found")
   found_available_ant_stick = False
 
 if found_available_ant_stick == False:
@@ -67,20 +67,20 @@ if found_available_ant_stick == False:
       stringl=["a4 01 4a 00 ef 00 00"]#reset system
       send(stringl)
     except usb.core.USBError:
-      print "Suunto Device is in use"
+      print("Suunto Device is in use")
       found_available_ant_stick = False
   except AttributeError:  
-    print "No Suunto Device found"
+    print("No Suunto Device found")
     found_available_ant_stick = False
 
 if found_available_ant_stick == False:
-  print "No available ANT+ device"
+  print("No available ANT+ device")
   sys.exit()
 #print dev.get_active_configuration()
 #usb.core.USBError: [Errno None] libusb0-dll:err [claim_interface] could not claim interface 0, win error: The requested resource is in use.       
 
 
-print "Calibrating..."
+print("Calibrating...")
 stringl=[
 "a4 02 4d 00 54 bf 00 00",#request max channels
 "a4 01 4a 00 ef 00 00",#reset system
@@ -89,7 +89,7 @@ stringl=[
 ]
 send(stringl)
 
-print "FEC channel config..."
+print("FEC channel config...")
 stringl=[
 "a4 03 42 00 10 00 f5 00 00",#[42] assign channel, [00] 0, [10] type 10 bidirectional transmit, [00] network number 0, [f5] extended assignment
 "a4 05 51 00 01 00 11 05 e5 00 00",#[51] set channel ID, [00] number 0 (wildcard search) , [01] device number 1, [00] pairing request (off), [11] fec, [05] transmission type  (page 18 and 66 Protocols) 00000101 - 01= independent channel, 1=global data pages used
@@ -146,7 +146,7 @@ try:
           hexspeed = hex(int(speed*1000))[2:].zfill(4)
           newdata = '{0}{1}{2}{3}{4}'.format(newdata[:24], hexspeed[2:], ' ' , hexspeed[:2], newdata[29:]) # set speed
           newdata = '{0}{1}{2}'.format(newdata[:36], calc_checksum(newdata), newdata[38:])#recalculate checksum
-          print "FE DATA",newdata
+          print("FE DATA", newdata)
         
         else:#send specific trainer data
           if eventcounter >= 256:
@@ -172,11 +172,11 @@ try:
           power_msb_trainer_status_byte = '0000' + bits_0_to_3
           newdata = '{0}{1}{2}'.format(newdata[:30], hex(int(power_msb_trainer_status_byte))[2:].zfill(2), newdata[32:])#set mixed trainer data power msb byte
           newdata = '{0}{1}{2}'.format(newdata[:36], calc_checksum(newdata), newdata[38:])#recalculate checksum
-          print "TRAINER DATA",newdata
+          print("TRAINER DATA", newdata)
           
         reply = send([newdata])
         if "grade" in reply:
-          print "Grade set to ",reply['grade'],"%"
+          print("Grade set to ", reply['grade'], "%")
         
         
         eventcounter += 1
@@ -192,6 +192,5 @@ except KeyboardInterrupt: # interrupt power data sending with ctrl c, make sure 
 
 stringl=["a4 01 4a 00 ef 00 00"]#reset system
 send(stringl)
-
 
 

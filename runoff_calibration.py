@@ -11,21 +11,21 @@ for idp in idpl:
     break
 
 if product == 0:
-  print "Trainer not found"
+  print("Trainer not found")
   sys.exit()
   
 dev.set_configuration() #set active configuration
   
 #initialise TACX USB device
 byte_ints = [2,0,0,0] # will not read cadence until initialisation byte is sent
-byte_str = "".join(chr(n) for n in byte_ints)
+byte_str = bytes(byte_ints)
 dev.write(0x02,byte_str)
 
 
 
-print "CALIBRATION TIPS: Tyre pressure 100psi (unloaded and cold), aim for 7.2s rolloff"
-print "Warm up for 2 mins, then cycle 30kph-40kph for 30s then to above 40kph then stop pedalling and freewheel"
-print "Rolldown timer will start automatically when you hit 40kph, so stop pedalling quickly!"
+print("CALIBRATION TIPS: Tyre pressure 100psi (unloaded and cold), aim for 7.2s rolloff")
+print("Warm up for 2 mins, then cycle 30kph-40kph for 30s then to above 40kph then stop pedalling and freewheel")
+print("Rolldown timer will start automatically when you hit 40kph, so stop pedalling quickly!")
 
 speed = 0
 running = True
@@ -51,7 +51,7 @@ try:
       r6=int(2700)>>8 & 0xff #byte6
       r5=int(2700) & 0xff #byte 5
       byte_ints = [0x01, 0x08, 0x01, 0x00, r5, r6, pedecho, 0x00 ,0x02, 0x52, 0x10, 0x04]
-      byte_str = "".join(chr(n) for n in byte_ints)
+      byte_str = bytes(byte_ints)
       dev.write(0x02,byte_str)#send data to device
     if speed > 40 or rolldown == True:
       if rolldown_time == 0:
@@ -67,12 +67,12 @@ try:
       sys.stdout.flush()
 
   if time.time() - rolldown_time > 7.5 : 
-    print "More pressure from trainer on tyre required"
+    print("More pressure from trainer on tyre required")
   elif time.time() - rolldown_time < 6.5 : 
-    print "Less pressure from trainer on tyre required"
+    print("Less pressure from trainer on tyre required")
   else:
-    print "Calibration OK - good to train and get reasonable power numbers!"
-  raw_input("Press Enter to continue...")
+    print("Calibration OK - good to train and get reasonable power numbers!")
+  input("Press Enter to continue...")
 except KeyboardInterrupt:
   pass
     

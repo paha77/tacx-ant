@@ -1,5 +1,5 @@
 import ant, os, usb.core, time, binascii, trainer, sys, os, pickle
-from Tkinter import *
+from tkinter import *
 import threading
 import numpy as np
 #from scipy.optimize import curve_fit

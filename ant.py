@@ -4,7 +4,7 @@ if platform.system() == 'Linux':
   import serial
 
 def calc_checksum(message):#calulate message checksum
-  pattern = re.compile('[\W_]+')
+  pattern = re.compile(r'[\W_]+')
   message=pattern.sub('', message)
   byte = 0
   xor_value = int(message[byte*2:byte*2+2], 16)
@@ -20,23 +20,23 @@ def send_ant(stringl, dev_ant, debug):#send message string to dongle
   rtn = []
   for string in stringl:
     i=0
-    send=""
+    send=b""
     while i<len(string):
       send = send + binascii.unhexlify(string[i:i+2])
       i=i+3
-    if debug == True: print int(time.time()*1000),'>>',binascii.hexlify(send)#log data to console
+    if debug == True: print(int(time.time()*1000), '>>', binascii.hexlify(send).decode("ascii"))#log data to console
     #if os.name == 'posix':
     if platform.system() == 'Linux':
       dev_ant.write(send)
     else:
       try:
         dev_ant.write(0x01,send)
-      except Exception, e:
-        print "USB WRITE ERROR", str(e)
+      except Exception as e:
+        print("USB WRITE ERROR", str(e))
     tr = read_ant(dev_ant, debug)
     for v in tr: rtn.append(v)
 
-  if debug == True: print rtn
+  if debug == True: print(rtn)
   return rtn
 
 
@@ -47,21 +47,21 @@ def read_ant(dev_ant, debug):
   if platform.system() == 'Linux':
     dev_ant.timeout = 0.1
     try:
-      read_val += binascii.hexlify(dev_ant.read(size=256))
-    except Exception, e:
+      read_val += binascii.hexlify(dev_ant.read(size=256)).decode("ascii")
+    except Exception as e:
       read_val = ""
-      print str(e)
+      print(str(e))
   #elif os.name == 'nt': 
   else:
     try:
       while trv:
-        trv = binascii.hexlify(dev_ant.read(0x81,64,20))
+        trv = binascii.hexlify(dev_ant.read(0x81,64,20)).decode("ascii")
         read_val += trv
-    except Exception, e:
+    except Exception as e:
       if "timeout error" in str(e):
         pass
       else:
-        print "USB READ ERROR", str(e)
+        print("USB READ ERROR", str(e))
       
   read_val_list = read_val.split("a4")#break reply into list of messsages
   rtn = []
@@ -72,7 +72,7 @@ def read_ant(dev_ant, debug):
           if calc_checksum("a4"+rv) == rv[-2:]: 
             rtn.append("a4"+rv)
     
-  if debug: print "<<",rtn
+  if debug: print("<<", rtn)
   return rtn
   
   
@@ -142,7 +142,7 @@ def get_ant(debug):
   dongles = {4104:"Suunto", 4105:"Garmin", 4100:"Older"}
   reset_string="a4 01 4a 00 ef 00 00"#reset string probe 
   i = 0
-  send=""
+  send=b""
   while i<len(reset_string):
     send = send + binascii.unhexlify(reset_string[i:i+2])
     i=i+3
@@ -157,25 +157,25 @@ def get_ant(debug):
           dev_ant = usb.core.find(idVendor=0x0fcf, idProduct=ant_pid) #get ANT+ stick 
           dev_ant.set_configuration() #set active configuration
           try:#check if in use
-            if debug: print "Trying to write to %s dongle" % ant_pid
+            if debug: print("Trying to write to %s dongle" % ant_pid)
             dev_ant.write(0x01, send)#probe with reset command
             reply = read_ant(dev_ant, debug)
             matching = [s for s in reply if "a4016f" in s]#look for an ANT+ reply
             if matching:
               found_available_ant_stick = True
               msg = "Using %s dongle" % dongles[ant_pid]
-              if debug: print msg
+              if debug: print(msg)
           except usb.core.USBError:#cannot write to ANT dongle
-            if debug: print "ANT dongle in use"
+            if debug: print("ANT dongle in use")
             found_available_ant_stick = False
         #except AttributeError:#could not find dongle
-        except Exception, e:
-          if debug: print str(e)
+        except Exception as e:
+          if debug: print(str(e))
           if "AttributeError" in str(e):
-            if debug: print "Could not find %s dongle" % ant_pid
+            if debug: print("Could not find %s dongle" % ant_pid)
             msg = "Could not find dongle"
           elif "No backend" in str(e):
-            if debug: print "No backend- check libusb"
+            if debug: print("No backend- check libusb")
             msg = str(e)+"- check libusb"
           else:
             msg = str(e)
@@ -197,7 +197,7 @@ def get_ant(debug):
         ant_stick_found = True
         msg = "Found ANT Stick"
       else:
-        if debug: print read_val 
+        if debug: print(read_val)
         dev_ant.close()#not correct reply to reset
       if ant_stick_found == True  : break
 
@@ -214,5 +214,5 @@ def get_ant(debug):
   
   
   if not dev_ant: 
-    print "ANT Stick not found"
+    print("ANT Stick not found")
   return dev_ant, msg

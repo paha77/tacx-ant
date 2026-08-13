@@ -29,4 +29,4 @@ for res in range(0,14):
 
   m+="%s:%s,%s\n" % (res-3,a,b)
 
-print m
+print(m)
