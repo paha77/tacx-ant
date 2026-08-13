@@ -42,12 +42,12 @@ def main():
       try:#check if in use
         stringl=["a4 01 4a 00 ef 00 00"]#reset system
         ant.send(stringl, dev_ant, debug)
-        print "Using Garmin dongle..."
+        print("Using Garmin dongle...")
       except usb.core.USBError:
-        print "Garmin Device is in use"
+        print("Garmin Device is in use")
         found_available_ant_stick = False
     except AttributeError:
-      print "No Garmin Device found"
+      print("No Garmin Device found")
       found_available_ant_stick = False
 
     if found_available_ant_stick == False:
@@ -58,16 +58,16 @@ def main():
         try:#check if in use
           stringl=["a4 01 4a 00 ef 00 00"]#reset system
           ant.send(stringl, dev_ant, debug)
-          print "Using Suunto dongle..."
+          print("Using Suunto dongle...")
         except usb.core.USBError:
-          print "Suunto Device is in use"
+          print("Suunto Device is in use")
           found_available_ant_stick = False
       except AttributeError:  
-        print "No Suunto Device found"
+        print("No Suunto Device found")
         found_available_ant_stick = False
 
     if found_available_ant_stick == False:
-      print "No available ANT+ device. Retry after quitting Garmin Express or other application that uses ANT+. If still fails then remove dongles for 10s then reinsert"
+      print("No available ANT+ device. Retry after quitting Garmin Express or other application that uses ANT+. If still fails then remove dongles for 10s then reinsert")
       sys.exit()
     
 
@@ -79,7 +79,7 @@ def main():
       dev_ant = serial.Serial(p, 19200, rtscts=True,dsrdtr=True)
       dev_ant.timeout = 0.1
       dev_ant.write(binascii.unhexlify("a4014a00ef0000")) #probe with reset command
-      reply = binascii.hexlify(dev_ant.read(size=256))
+      reply = binascii.hexlify(dev_ant.read(size=256)).decode("ascii")
       if reply == "a4016f20ea" or reply == "a4016f00ca":#found ANT+ stick
         serial_port=p
         ant_stick_found = True
@@ -87,12 +87,12 @@ def main():
       if ant_stick_found == True  : break
 
     if ant_stick_found == False:
-      print 'Could not find ANT+ device. Check output of "lsusb | grep 0fcf" and "ls /dev/ttyUSB*"'
+      print('Could not find ANT+ device. Check output of "lsusb | grep 0fcf" and "ls /dev/ttyUSB*"')
       sys.exit()
       
     
   else:
-    print "OS not Supported"
+    print("OS not Supported")
     sys.exit()
 
 
@@ -107,7 +107,7 @@ def main():
         break
 
     if product == 0:
-      print "Trainer not found"
+      print("Trainer not found")
       sys.exit()
       
     dev.set_configuration() #set active configuration
@@ -121,7 +121,7 @@ def main():
 
   #initialise TACX USB device
   byte_ints = [2,0,0,0] # will not read cadence until initialisation byte is sent
-  byte_str = "".join(chr(n) for n in byte_ints)
+  byte_str = bytes(byte_ints)
   if not simulatetrainer:
     dev.write(0x02,byte_str)
   time.sleep(1)
@@ -155,18 +155,18 @@ def main():
       if not simulatetrainer:
         if product==0x1932:#if is a 1932 headunit
           data = dev.read(0x82,64) #get data from device
-          if debug == True: print datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],"TRAINER RX DATA",binascii.hexlify(data)
+          if debug == True: print(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3], "TRAINER RX DATA", binascii.hexlify(data).decode("ascii"))
           #get values reported by trainer
           if len(data)==24:
-            print "trainer possibly not powered up"
+            print("trainer possibly not powered up")
           if len(data) > 40:
             fs = int(data[33])<<8 | int(data[32])
             speed = round(fs/2.8054/100,1)#speed kph
             force = fromcomp((data[39]<<8)|data[38],16)
-            if debug == True: print datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],"FORCE",force
+            if debug == True: print(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3], "FORCE", force)
             try:#try to identify force value from list of possible resistance values
               force = T1932_calibration.possfov.index(force)+1
-              if debug == True: print datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],"FORCE INDEX", force
+              if debug == True: print(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3], "FORCE INDEX", force)
               power = T1932_calibration.calcpower(speed,force)
               power = int(power * float(powerfactor)) #alter for value passed on command line
             except ValueError:
@@ -176,11 +176,11 @@ def main():
       else:
           speed,cadence,power,heart_rate=(30, 90, 283, 72)
           power = int(power * float(powerfactor))
-      if debug == True: print speed,cadence,power,heart_rate
+      if debug == True: print(speed, cadence, power, heart_rate)
       
       ####################SEND DATA TO TRAINER####################
       #send resistance data to trainer   
-      if debug == True: print datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],"GRADE", grade*2,"%"
+      if debug == True: print(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3], "GRADE", grade*2, "%")
       if not simulatetrainer:
         if product==0x1932:#if is a 1932 headunit
           level = len(T1932_calibration.grade_resistance) - 1 #set resistance level to hardest as default
@@ -188,7 +188,7 @@ def main():
             if g >= grade*2:#find resistance value immediately above grade set by zwift (Zwift ANT+ grade is half that displayed on screen)
               level = idx
               break
-          if debug == True: print datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],"RESISTANCE LEVEL", T1932_calibration.reslist[level]
+          if debug == True: print(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3], "RESISTANCE LEVEL", T1932_calibration.reslist[level])
           r6=int(T1932_calibration.reslist[level])>>8 & 0xff #byte6
           r5=int(T1932_calibration.reslist[level]) & 0xff #byte 5
           #echo pedal cadence back to trainer
@@ -197,8 +197,8 @@ def main():
           else:
             pedecho = 0
           byte_ints = [0x01, 0x08, 0x01, 0x00, r5, r6, pedecho, 0x00 ,0x02, 0x52, 0x10, 0x04]
-          if debug == True: print datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],"TRAINER TX DATA",byte_ints
-          byte_str = "".join(chr(n) for n in byte_ints)
+          if debug == True: print(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3], "TRAINER TX DATA", byte_ints)
+          byte_str = bytes(byte_ints)
           dev.write(0x02,byte_str)#send data to device
       
       ####################BROADCAST AND RECEIVE ANT+ data####################
@@ -229,7 +229,7 @@ def main():
         hexspeed = hex(int(speed*1000))[2:].zfill(4)
         newdata = '{0}{1}{2}{3}{4}'.format(newdata[:24], hexspeed[2:], ' ' , hexspeed[:2], newdata[29:]) # set speed
         newdata = '{0}{1}{2}'.format(newdata[:36], ant.calc_checksum(newdata), newdata[38:])#recalculate checksum
-        if debug == True: print datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],"FE DATA",newdata
+        if debug == True: print(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3], "FE DATA", newdata)
       
       else:#send specific trainer data
         newdata = '{0}{1}{2}'.format(trainerdata[:15], hex(eventcounter)[2:].zfill(2), trainerdata[17:]) # increment event count
@@ -246,7 +246,7 @@ def main():
         power_msb_trainer_status_byte = '0000' + bits_0_to_3
         newdata = '{0}{1}{2}'.format(newdata[:30], hex(int(power_msb_trainer_status_byte))[2:].zfill(2), newdata[32:])#set mixed trainer data power msb byte
         newdata = '{0}{1}{2}'.format(newdata[:36], ant.calc_checksum(newdata), newdata[38:])#recalculate checksum
-        if debug == True: print datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],"TRAINER DATA",newdata
+        if debug == True: print(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3], "TRAINER DATA", newdata)
         reply = ant.send([newdata], dev_ant, debug)
       if "grade" in reply:
         grade = reply['grade']
@@ -326,7 +326,7 @@ def main():
         hrdata = "a4 09 4e 01 "+hr_byte_0+" "+hr_byte_1+" "+hr_byte_2+" "+hr_byte_3+" "+hr_byte_4+" "+hr_byte_5+" "+hr_byte_6+" "+hr_byte_7+" 02 00 00"
         hrdata = "a4 09 4e 01 "+hr_byte_0+" "+hr_byte_1+" "+hr_byte_2+" "+hr_byte_3+" "+hr_byte_4+" "+hr_byte_5+" "+hr_byte_6+" "+hr_byte_7+" "+ant.calc_checksum(hrdata)+" 00 00"
         time.sleep(0.125)# sleep for 120ms
-        if debug == True: print datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],"HEART RATE",hrdata
+        if debug == True: print(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3], "HEART RATE", hrdata)
         ant.send([hrdata], dev_ant, debug)
       ####################wait ####################
       

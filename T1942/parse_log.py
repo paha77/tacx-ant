@@ -18,13 +18,13 @@ with open(filepath) as fp:
       #print " ".join("%s:%s" % (1+i/2, lines[i:i+2]) for i in range(0, len(lines)-2, 2))
       
       if len(lines)==98:
-	#print lines
+        #print lines
         #33,34 speed little endian
         speed = int(lines[66:68]+lines[64:66],16)
         if (speed & ( 1 << 15 ))!=0: speed = speed - ( 1 << 16)
-	speed = speed/2.8054/100
-		
-	
+        speed = speed/2.8054/100
+
+
         #Bytes 39, 40 is the force on the wheel to compute the power 
         force = int(lines[78:80]+lines[76:78],16)
         if (force & ( 1 << 15 ))!=0: force = force - ( 1 << 16)
@@ -39,5 +39,5 @@ with open(filepath) as fp:
         
         #if res in reslist: print res, force
         if speed >10:
-          print "%s,%s" % (res, force)#, speed, heartrate
+          print("%s,%s" % (res, force))#, speed, heartrate
     line = fp.readline()

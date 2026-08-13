@@ -3,8 +3,46 @@ import binascii, re, os, usb.core, glob, time, platform
 if platform.system() == 'Linux':
   import serial
 
+
+def env_int(name, default):
+  return int(os.environ.get(name, str(default)), 0)
+
+
+def ant_message(message_id, payload):
+  data = [0xa4, len(payload), message_id] + payload
+  checksum = 0
+  for value in data:
+    checksum ^= value
+  data.append(checksum)
+  return " ".join(hex(value)[2:].zfill(2) for value in data) + " 00 00"
+
+
+def fec_device_number():
+  return env_int("ANTIFIER_FEC_DEVICE_NUMBER", 207) & 0xffff
+
+
+def hr_device_number():
+  return env_int("ANTIFIER_HR_DEVICE_NUMBER", 365) & 0xffff
+
+
+def fec_manufacturer_page():
+  manufacturer_id = env_int("ANTIFIER_FEC_MANUFACTURER_ID", 89) & 0xffff
+  model_number = env_int("ANTIFIER_FEC_MODEL_NUMBER", 33669) & 0xffff
+  hardware_revision = env_int("ANTIFIER_FEC_HARDWARE_REVISION", 1) & 0xff
+  return [
+    0x50,
+    0xff,
+    0xff,
+    hardware_revision,
+    manufacturer_id & 0xff,
+    (manufacturer_id >> 8) & 0xff,
+    model_number & 0xff,
+    (model_number >> 8) & 0xff,
+  ]
+
+
 def calc_checksum(message):#calulate message checksum
-  pattern = re.compile('[\W_]+')
+  pattern = re.compile(r'[\W_]+')
   message=pattern.sub('', message)
   byte = 0
   xor_value = int(message[byte*2:byte*2+2], 16)
@@ -20,23 +58,27 @@ def send_ant(stringl, dev_ant, debug):#send message string to dongle
   rtn = []
   for string in stringl:
     i=0
-    send=""
+    send=b""
     while i<len(string):
       send = send + binascii.unhexlify(string[i:i+2])
       i=i+3
-    if debug == True: print int(time.time()*1000),'>>',binascii.hexlify(send)#log data to console
+    if debug == True: print(int(time.time()*1000), '>>', binascii.hexlify(send).decode("ascii"))#log data to console
     #if os.name == 'posix':
     if platform.system() == 'Linux':
-      dev_ant.write(send)
+      try:
+        dev_ant.write(send)
+      except Exception as e:
+        if debug: print("ANT WRITE ERROR", str(e))
+        return rtn
     else:
       try:
         dev_ant.write(0x01,send)
-      except Exception, e:
-        print "USB WRITE ERROR", str(e)
+      except Exception as e:
+        print("USB WRITE ERROR", str(e))
     tr = read_ant(dev_ant, debug)
     for v in tr: rtn.append(v)
 
-  if debug == True: print rtn
+  if debug == True: print(rtn)
   return rtn
 
 
@@ -45,23 +87,24 @@ def read_ant(dev_ant, debug):
   trv = True #temp rtn value from ANT stick
   #if os.name == 'posix':
   if platform.system() == 'Linux':
-    dev_ant.timeout = 0.1
+    if dev_ant.timeout is None or dev_ant.timeout < 0.1:
+      dev_ant.timeout = 0.1
     try:
-      read_val += binascii.hexlify(dev_ant.read(size=256))
-    except Exception, e:
+      read_val += binascii.hexlify(dev_ant.read(size=256)).decode("ascii")
+    except Exception as e:
       read_val = ""
-      print str(e)
+      print(str(e))
   #elif os.name == 'nt': 
   else:
     try:
       while trv:
-        trv = binascii.hexlify(dev_ant.read(0x81,64,20))
+        trv = binascii.hexlify(dev_ant.read(0x81,64,20)).decode("ascii")
         read_val += trv
-    except Exception, e:
+    except Exception as e:
       if "timeout error" in str(e):
         pass
       else:
-        print "USB READ ERROR", str(e)
+        print("USB READ ERROR", str(e))
       
   read_val_list = read_val.split("a4")#break reply into list of messsages
   rtn = []
@@ -72,7 +115,7 @@ def read_ant(dev_ant, debug):
           if calc_checksum("a4"+rv) == rv[-2:]: 
             rtn.append("a4"+rv)
     
-  if debug: print "<<",rtn
+  if debug: print("<<", rtn)
   return rtn
   
   
@@ -87,29 +130,23 @@ def calibrate(dev_ant, debug):
   send_ant(stringl,dev_ant, debug)
   
 def master_channel_config(dev_ant, debug):
+  device_number = fec_device_number()
   stringl=[
   "a4 03 42 00 10 00 f5 00 00",#[42] assign channel, [00] 0, [10] type 10 bidirectional transmit, [00] network number 0, [f5] extended assignment
-  "a4 05 51 00 cf 00 11 05 2b 00 00",#[51] set channel ID, [00] number 0 (wildcard search) , [cf] device number 207, [00] pairing request (off), [11] device type fec, [05] transmission type  (page 18 and 66 Protocols) 00000101 - 01= independent channel, 1=global data pages used
+  ant_message(0x51, [0x00, device_number & 0xff, (device_number >> 8) & 0xff, 0x11, 0x05]),#[51] set channel ID, [00] channel 0, device number, [11] device type fec, [05] transmission type
   "a4 02 45 00 39 da 00 00",#[45] set channel freq, [00] transmit channel on network #0, [39] freq 2400 + 57 x 1 Mhz= 2457 Mhz
   "a4 03 43 00 00 20 c4 00 00",#[43] set messaging period, [00] channel #0, [f61f] = 32768/8182(f61f) = 4Hz (The channel messaging period in seconds * 32768. Maximum messaging period is ~2 seconds. )
   "a4 02 60 00 03 c5 00 00",#[60] set transmit power, [00] channel #0, [03] 0 dBm
   "a4 01 4b 00 ee 00 00",#open channel #0
-  "a4 09 4e 00 50 ff ff 01 59 00 85 83 ed 00 00",#broadcast manufacturer's data #FitSDKRelease_20.50.00.zip profile.xlsx D00001198_-_ANT+_Common_Data_Pages_Rev_3.1%20.pdf page 28 byte 4,5,6,7- 15=dynastream, 89=tacx
+  ant_message(0x4e, [0x00] + fec_manufacturer_page()),#broadcast manufacturer's data
   ]
   send_ant(stringl, dev_ant, debug)
 
 def second_channel_config(dev_ant, debug):
-  #stringl=[
-  #"a4 03 42 01 10 00 f4 00 00",#[42] assign channel, [01] channel #1, [10] type 10 bidirectional transmit, [00] network number 0, [f4] normal assignment
-  #"a4 05 51 01 02 00 78 01 8a 00 00",#[51] set channel ID, [01] channel 1 , [02] device number 2, [00] pairing request (off), [78] device type HR sensor, [01] transmission type  (page 18 and 66 Protocols) 00000101 - 01= independent channel, 1=global data pages used
-  #"a4 02 45 01 39 db 00 00",#[45] set channel freq, [01] set channel #1, [39] freq 2400 + 57 x 1 Mhz= 2457 Mhz
-  #"a4 03 43 01 86 1f c5 00 00",#[43] set messaging period, [01] channel #1, [861f] = 32768/8070(861f) = 4Hz (The channel messaging period in seconds * 32768. Maximum messaging period is ~2 seconds. )
-  #"a4 02 60 01 03 c4 00 00",#[60] set transmit power, [01] channel #1, [03] 0 dBm
-  #"a4 01 4b 01 ef 00 00",#open channel #1
-  #]
+  device_number = hr_device_number()
   stringl=[
     "a4 03 42 01 10 00 f4 00 00",
-    "a4 05 51 01 65 00 78 01 ed 00 00",
+    ant_message(0x51, [0x01, device_number & 0xff, (device_number >> 8) & 0xff, 0x78, 0x01]),
     "a4 02 45 01 39 db 00 00",
     "a4 03 43 01 86 1f 7c 00 00",
     "a4 02 60 01 03 c4 00 00",
@@ -137,12 +174,34 @@ def antreset(dev_ant, debug):
   #  elif os.name == 'nt': read_val = binascii.hexlify(dev_ant.read(0x81,64))#
   send_ant(["a4 01 4a 00 ef 00 00"],dev_ant, debug)
 
+def is_ant_probe_reply(read_val):
+  if not read_val:
+    return False
+  if "a4016f20ea" in read_val or "a4016f00ca" in read_val:
+    return True
+  for reply in read_val:
+    if reply.startswith("a4"):
+      return True
+  return False
+
+def linux_ant_serial_ports():
+  ports = []
+  for p in glob.glob('/dev/serial/by-id/*'):
+    real_path = os.path.realpath(p)
+    label = os.path.basename(p).lower()
+    if 'ant' in label and real_path.startswith('/dev/ttyUSB') and real_path not in ports:
+      ports.append(real_path)
+  for p in glob.glob('/dev/ttyUSB*'):
+    if p not in ports:
+      ports.append(p)
+  return ports
+
 def get_ant(debug):
   msg=""
   dongles = {4104:"Suunto", 4105:"Garmin", 4100:"Older"}
   reset_string="a4 01 4a 00 ef 00 00"#reset string probe 
   i = 0
-  send=""
+  send=b""
   while i<len(reset_string):
     send = send + binascii.unhexlify(reset_string[i:i+2])
     i=i+3
@@ -157,25 +216,25 @@ def get_ant(debug):
           dev_ant = usb.core.find(idVendor=0x0fcf, idProduct=ant_pid) #get ANT+ stick 
           dev_ant.set_configuration() #set active configuration
           try:#check if in use
-            if debug: print "Trying to write to %s dongle" % ant_pid
+            if debug: print("Trying to write to %s dongle" % ant_pid)
             dev_ant.write(0x01, send)#probe with reset command
             reply = read_ant(dev_ant, debug)
             matching = [s for s in reply if "a4016f" in s]#look for an ANT+ reply
             if matching:
               found_available_ant_stick = True
               msg = "Using %s dongle" % dongles[ant_pid]
-              if debug: print msg
+              if debug: print(msg)
           except usb.core.USBError:#cannot write to ANT dongle
-            if debug: print "ANT dongle in use"
+            if debug: print("ANT dongle in use")
             found_available_ant_stick = False
         #except AttributeError:#could not find dongle
-        except Exception, e:
-          if debug: print str(e)
+        except Exception as e:
+          if debug: print(str(e))
           if "AttributeError" in str(e):
-            if debug: print "Could not find %s dongle" % ant_pid
+            if debug: print("Could not find %s dongle" % ant_pid)
             msg = "Could not find dongle"
           elif "No backend" in str(e):
-            if debug: print "No backend- check libusb"
+            if debug: print("No backend- check libusb")
             msg = str(e)+"- check libusb"
           else:
             msg = str(e)
@@ -189,16 +248,20 @@ def get_ant(debug):
   elif platform.system() == 'Linux':
     #Find ANT+ USB stick on serial (Linux)
     ant_stick_found = False
-    for p in glob.glob('/dev/ttyUSB*'):
-      dev_ant = serial.Serial(p, 19200, rtscts=True,dsrdtr=True)
-      read_val = send_ant(["a4 01 4a 00 ef 00 00"], dev_ant, False) #probe with reset command
-      if "a4016f20ea" in read_val or "a4016f00ca" in read_val:#found ANT+ stick
-        serial_port=p
-        ant_stick_found = True
-        msg = "Found ANT Stick"
-      else:
-        if debug: print read_val 
-        dev_ant.close()#not correct reply to reset
+    for p in linux_ant_serial_ports():
+      try:
+        dev_ant = serial.Serial(p, 19200, timeout=0.1, rtscts=True, dsrdtr=True)
+        read_val = send_ant(["a4 01 4a 00 ef 00 00"], dev_ant, False) #probe with reset command
+        if is_ant_probe_reply(read_val):#found ANT+ stick
+          serial_port=p
+          ant_stick_found = True
+          msg = "Found ANT Stick"
+        else:
+          if debug: print(read_val)
+          dev_ant.close()#not correct reply to reset
+      except Exception as e:
+        if debug: print("Could not probe %s: %s" % (p, e))
+        continue
       if ant_stick_found == True  : break
 
     if ant_stick_found == False:
@@ -214,5 +277,5 @@ def get_ant(debug):
   
   
   if not dev_ant: 
-    print "ANT Stick not found"
+    print("ANT Stick not found")
   return dev_ant, msg
