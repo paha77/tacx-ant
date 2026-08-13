@@ -32,11 +32,4 @@ case "${1:-}" in
     ;;
 esac
 
-"$@" &
-child=$!
-set +e
-wait "$child"
-status=$?
-child=
-set -e
-exit "$status"
+"$@"

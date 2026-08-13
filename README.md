@@ -1,24 +1,28 @@
 # antifier
-This project will enable a Windows or Linux PC to broadcast ANT+ data via a dongle from a Tacx trainer connected to it via USB. This can be either be from a standalone PC broadcasting to a PC or tablet running e.g. Zwift or Trainerroad, or from a Windows PC already running Zwift/ Trainerroad (this PC will therefore require two ANT+ dongles) 
+This project broadcasts ANT+ FE-C trainer data and ANT+ heart-rate data through an ANT+ dongle. Power, cadence, and heart rate are controlled interactively from the keyboard.
 Home page: https://github.com/john-38787364/antifier
 
 ## Resetting USB after usage
 ### Run on host (not in Docker-Container)
     python3 reset_usb.py /dev/bus/usb/001/002
 
-## Simulation with keyboard controls
+## Run
 
-Start simulation with
+Start the broadcaster with
 
-`python3 antifier.py -l -c power_calc_factors_fortius.txt -s`
+`python3 antifier.py`
 
-* q: Increase speed by 1 km/h
-* a: Decrease speed by 1 km/h
+Or run it in Docker with
 
+`docker compose run --rm antifier`
 
+## Keyboard controls
+
+* q: Increase power by 5 W
+* a: Decrease power by 5 W
 * w: Increase cadence by 1 rpm
-* s: Increase cadence by 1 rpm
-
-
-* e: Increase heart rate by 1 beat / minute
-* d: Decrease heart rate by 1 beat / minute
+* s: Decrease cadence by 1 rpm
+* e: Increase heart rate by 1 beat/minute
+* d: Decrease heart rate by 1 beat/minute
+* r: Reset to 150 W, 90 rpm, 120 bpm
+* x: Quit
