@@ -1,5 +1,7 @@
 # Antifier
 
+> **Legacy project:** This repository is the old Antifier codebase and is kept for reference. New development will continue in the Trainercast repository: <https://github.com/paha77/trainercast>.
+
 Antifier is a small interactive broadcaster for indoor cycling apps. It sends simulated trainer and heart-rate data to apps such as Zwift or TrainerRoad, while you control the numbers from the keyboard.
 
 It can broadcast in two ways:
