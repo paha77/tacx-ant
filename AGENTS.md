@@ -103,7 +103,9 @@ Current Bluetooth behavior:
 - Notifies FTMS Indoor Bike Data (`0x2ad2`) with instantaneous speed placeholder, cadence, resistance level, power, and heart rate.
 - Notifies Bluetooth Heart Rate Measurement (`0x2a37`).
 - Exposes FTMS Fitness Machine Feature (`0x2acc`), Supported Resistance Level Range (`0x2ad6`), Fitness Machine Control Point (`0x2ad9`), and Fitness Machine Status (`0x2ada`).
-- Accepts Fitness Machine Control Point writes for request control, reset, set target resistance level, set target power, start/resume, and stop/pause.
+- Accepts Fitness Machine Control Point writes for request control, reset, set target resistance level, set target power, set target inclination, indoor-bike simulation parameters, start/resume, and stop/pause.
+- The terminal dashboard displays the last Fitness Machine Control Point command received from Zwift or another Bluetooth training app, including command name, decoded requested value, result, raw bytes, control ownership, and age. Apps may send indoor-bike simulation parameters with grade/slope values instead of a direct target-resistance command.
+- Bluetooth mode also exposes Device Information metadata and throttles duplicate unchanged telemetry notifications while still notifying immediately on value changes.
 - Resistance defaults to a 0-100 range in 1-step increments and can be configured with `ANTIFIER_BLUETOOTH_MIN_RESISTANCE`, `ANTIFIER_BLUETOOTH_MAX_RESISTANCE`, and `ANTIFIER_BLUETOOTH_RESISTANCE_INCREMENT`.
 - The advertised Bluetooth local name defaults to `Antifier` and can be changed with `ANTIFIER_BLUETOOTH_NAME`; adapter path defaults to `/org/bluez/hci0` and can be changed with `ANTIFIER_BLUETOOTH_ADAPTER`.
 

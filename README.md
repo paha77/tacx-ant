@@ -26,11 +26,13 @@ ANTIFIER_TRANSPORT=bluetooth python3 antifier.py
 
 Bluetooth mode advertises a BLE Fitness Machine Service plus Heart Rate Service through BlueZ, then notifies connected apps with the same interactive power, cadence, resistance, and heart-rate values as the ANT+ stack. It requires a Bluetooth adapter that supports BLE peripheral advertising, a running BlueZ service, and the `dbus-next` Python package. The advertised local name defaults to `Antifier` and can be changed with `ANTIFIER_BLUETOOTH_NAME`.
 
-In Bluetooth mode, Antifier also exposes the FTMS Fitness Machine Feature, Supported Resistance Level Range, Fitness Machine Control Point, and Fitness Machine Status characteristics. Apps can request control and set target resistance through the control point. Resistance defaults to a 0-100% range in 1% steps and can be changed with `ANTIFIER_BLUETOOTH_MIN_RESISTANCE`, `ANTIFIER_BLUETOOTH_MAX_RESISTANCE`, and `ANTIFIER_BLUETOOTH_RESISTANCE_INCREMENT`.
+In Bluetooth mode, Antifier also exposes the FTMS Fitness Machine Feature, Supported Resistance Level Range, Fitness Machine Control Point, Fitness Machine Status, and Device Information characteristics. Apps can request control, reset, start/resume, stop/pause, set target resistance, set target power, set target inclination, and send indoor-bike simulation parameters through the control point. Resistance defaults to a 0-100% range in 1% steps and can be changed with `ANTIFIER_BLUETOOTH_MIN_RESISTANCE`, `ANTIFIER_BLUETOOTH_MAX_RESISTANCE`, and `ANTIFIER_BLUETOOTH_RESISTANCE_INCREMENT`. Simulation grade and target inclination are mapped onto resistance with `ANTIFIER_BLUETOOTH_GRADE_RESISTANCE_FACTOR`, which defaults to `1`.
 
 ## Keyboard controls
 
-When run in an interactive terminal, `antifier.py` displays a colorful responsive text dashboard with the current broadcast values and controls. It falls back to a compact one-line status when stdout is not a terminal or `ANTIFIER_DEBUG=1` is enabled.
+When run in an interactive terminal, `antifier.py` displays a colorful responsive text dashboard with the current broadcast values, the last command received from a connected Bluetooth training app, and keyboard controls. The received-command panel shows the FTMS command name, decoded requested value, result, raw control-point bytes, control ownership, and age. Zwift and similar apps may send an indoor-bike simulation command with grade/slope values instead of a direct target-resistance command. It falls back to a compact one-line status when stdout is not a terminal or `ANTIFIER_DEBUG=1` is enabled.
+
+If a training app cached an older Antifier Bluetooth service layout, forget the old trainer once after upgrading so the app rediscovers the current GATT database. Subsequent restarts should keep the same advertised name, appearance, Device Information metadata, and service layout.
 
 * q: Increase power by 5 W
 * a: Decrease power by 5 W

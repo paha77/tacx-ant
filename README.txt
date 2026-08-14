@@ -19,7 +19,8 @@ python3 antifier.py --transport bluetooth
 ANTIFIER_TRANSPORT=bluetooth python3 antifier.py
 
 KEYBOARD CONTROLS
-When run in an interactive terminal, antifier.py displays a colorful responsive text dashboard with the current broadcast values and controls. It falls back to a compact one-line status when stdout is not a terminal or ANTIFIER_DEBUG=1 is enabled.
+When run in an interactive terminal, antifier.py displays a colorful responsive text dashboard with the current broadcast values, the last command received from a connected Bluetooth training app, and controls. It falls back to a compact one-line status when stdout is not a terminal or ANTIFIER_DEBUG=1 is enabled.
+Bluetooth mode accepts target resistance, target power, target inclination, and indoor-bike simulation parameter commands. Simulation grade is mapped to resistance with ANTIFIER_BLUETOOTH_GRADE_RESISTANCE_FACTOR.
 
 q: Increase power by 5 W
 a: Decrease power by 5 W

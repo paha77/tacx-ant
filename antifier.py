@@ -79,6 +79,12 @@ class BroadcastState:
   cadence: int = 90
   heart_rate: int = 120
   resistance: int = 0
+  app_command_name: str = ""
+  app_command_value: str = ""
+  app_command_result: str = ""
+  app_command_raw: str = ""
+  app_command_received_at: float = 0.0
+  app_control_acquired: bool = False
 
 
 @dataclass(frozen=True)
@@ -244,9 +250,17 @@ class TerminalDashboard:
 
   def render(self, state, event_count, force=False):
     if not self.enabled:
+      app_status = self.compact_app_status(state)
       print(
-        "\rMode %-9s | Power %4d W | Cadence %3d rpm | HR %3d bpm | Resistance %3d%%   " %
-        (self.transport.upper(), state.power, state.cadence, state.heart_rate, state.resistance),
+        "\rMode %-9s | Power %4d W | Cadence %3d rpm | HR %3d bpm | Resistance %3d%% | App %s   " %
+        (
+          self.transport.upper(),
+          state.power,
+          state.cadence,
+          state.heart_rate,
+          state.resistance,
+          app_status,
+        ),
         end="",
         flush=True,
       )
@@ -283,13 +297,15 @@ class TerminalDashboard:
       lines.extend(self.narrow_metrics(state, width))
 
     lines.append(self.rule(width, "-"))
+    lines.extend(self.received_app_lines(state, width))
+    lines.append(self.rule(width, "-"))
     lines.extend(self.controls_lines(width))
     lines.append(self.rule(width, "="))
     return [fit_text(line, width) for line in lines]
 
   def wide_metrics(self, state, width):
     gap = "  "
-    card_width = max(26, (width - len(gap) * (len(self.metrics) - 1)) // len(self.metrics))
+    card_width = (width - len(gap) * (len(self.metrics) - 1)) // len(self.metrics)
     cards = [self.metric_card(metric, state, card_width) for metric in self.metrics]
     lines = []
     for row in range(len(cards[0])):
@@ -339,6 +355,44 @@ class TerminalDashboard:
         lines.append("  %-5s %s" % (control.keys, control.label))
     return lines
 
+  def received_app_lines(self, state, width):
+    lines = ["Received app command:"]
+    if not state.app_command_name:
+      lines.append("  none yet")
+      return lines
+
+    age = max(0, int(time.time() - state.app_command_received_at))
+    control = "yes" if state.app_control_acquired else "no"
+    value = state.app_command_value or "-"
+    result = state.app_command_result or "-"
+    raw = state.app_command_raw or "-"
+
+    if width >= 88:
+      lines.append(
+        "  %-22s value %-12s result %-23s control %s  %ss ago" %
+        (state.app_command_name, value, result, control, age)
+      )
+      lines.append("  raw %s" % raw)
+    else:
+      lines.append("  command: %s" % state.app_command_name)
+      lines.append("  value:   %s" % value)
+      lines.append("  result:  %s" % result)
+      lines.append("  control: %s, %ss ago" % (control, age))
+      lines.append("  raw:     %s" % raw)
+    return lines
+
+  def compact_app_status(self, state):
+    if not state.app_command_name:
+      return "none"
+    age = max(0, int(time.time() - state.app_command_received_at))
+    value = (" " + state.app_command_value) if state.app_command_value else ""
+    return "%s%s -> %s (%ss ago)" % (
+      state.app_command_name,
+      value,
+      state.app_command_result or "-",
+      age,
+    )
+
   def transport_switch(self, width):
     switch = "[ ANT+ ]=== [ Bluetooth ]"
     return self.center(switch, width)
@@ -369,6 +423,8 @@ class TerminalDashboard:
       return self.style(line, "dim")
     if line == "Controls:":
       return self.style(line, "bold", "bright_magenta")
+    if line == "Received app command:":
+      return self.style(line, "bold", "bright_cyan")
     if line.startswith("  "):
       return self.colorize_control_line(line)
     return line

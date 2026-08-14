@@ -1,6 +1,7 @@
 import asyncio
 import os
 import threading
+import time
 
 try:
   from dbus_next import BusType, Variant
@@ -10,7 +11,11 @@ try:
 except ImportError:
   BusType = None
   MessageBus = None
-  Variant = None
+
+  class Variant:
+    def __init__(self, signature, value):
+      self.signature = signature
+      self.value = value
 
   class PropertyAccess:
     READ = "read"
@@ -34,6 +39,11 @@ except ImportError:
 
 
 FTMS_SERVICE_UUID = "00001826-0000-1000-8000-00805f9b34fb"
+DEVICE_INFORMATION_SERVICE_UUID = "0000180a-0000-1000-8000-00805f9b34fb"
+MANUFACTURER_NAME_UUID = "00002a29-0000-1000-8000-00805f9b34fb"
+MODEL_NUMBER_UUID = "00002a24-0000-1000-8000-00805f9b34fb"
+SERIAL_NUMBER_UUID = "00002a25-0000-1000-8000-00805f9b34fb"
+FIRMWARE_REVISION_UUID = "00002a26-0000-1000-8000-00805f9b34fb"
 FITNESS_MACHINE_FEATURE_UUID = "00002acc-0000-1000-8000-00805f9b34fb"
 INDOOR_BIKE_DATA_UUID = "00002ad2-0000-1000-8000-00805f9b34fb"
 SUPPORTED_RESISTANCE_LEVEL_RANGE_UUID = "00002ad6-0000-1000-8000-00805f9b34fb"
@@ -49,10 +59,56 @@ FTMS_INVALID_PARAMETER = 0x03
 FTMS_CONTROL_NOT_PERMITTED = 0x05
 FTMS_REQUEST_CONTROL = 0x00
 FTMS_RESET = 0x01
+FTMS_SET_TARGET_SPEED = 0x02
+FTMS_SET_TARGET_INCLINATION = 0x03
 FTMS_SET_TARGET_RESISTANCE_LEVEL = 0x04
 FTMS_SET_TARGET_POWER = 0x05
+FTMS_SET_TARGET_HEART_RATE = 0x06
 FTMS_START_OR_RESUME = 0x07
 FTMS_STOP_OR_PAUSE = 0x08
+FTMS_SET_TARGETED_EXPENDED_ENERGY = 0x09
+FTMS_SET_TARGETED_NUMBER_OF_STEPS = 0x0a
+FTMS_SET_TARGETED_NUMBER_OF_STRIDES = 0x0b
+FTMS_SET_TARGETED_DISTANCE = 0x0c
+FTMS_SET_TARGETED_TRAINING_TIME = 0x0d
+FTMS_SET_TARGETED_TIME_IN_TWO_HEART_RATE_ZONES = 0x0e
+FTMS_SET_TARGETED_TIME_IN_THREE_HEART_RATE_ZONES = 0x0f
+FTMS_SET_TARGETED_TIME_IN_FIVE_HEART_RATE_ZONES = 0x10
+FTMS_SET_INDOOR_BIKE_SIMULATION_PARAMETERS = 0x11
+FTMS_SET_WHEEL_CIRCUMFERENCE = 0x12
+FTMS_SPIN_DOWN_CONTROL = 0x13
+FTMS_SET_TARGETED_CADENCE = 0x14
+
+FTMS_OPCODE_NAMES = {
+  FTMS_REQUEST_CONTROL: "request control",
+  FTMS_RESET: "reset",
+  FTMS_SET_TARGET_SPEED: "set target speed",
+  FTMS_SET_TARGET_INCLINATION: "set target inclination",
+  FTMS_SET_TARGET_RESISTANCE_LEVEL: "set target resistance",
+  FTMS_SET_TARGET_POWER: "set target power",
+  FTMS_SET_TARGET_HEART_RATE: "set target heart rate",
+  FTMS_START_OR_RESUME: "start/resume",
+  FTMS_STOP_OR_PAUSE: "stop/pause",
+  FTMS_SET_TARGETED_EXPENDED_ENERGY: "set target energy",
+  FTMS_SET_TARGETED_NUMBER_OF_STEPS: "set target steps",
+  FTMS_SET_TARGETED_NUMBER_OF_STRIDES: "set target strides",
+  FTMS_SET_TARGETED_DISTANCE: "set target distance",
+  FTMS_SET_TARGETED_TRAINING_TIME: "set target training time",
+  FTMS_SET_TARGETED_TIME_IN_TWO_HEART_RATE_ZONES: "set target time in 2 HR zones",
+  FTMS_SET_TARGETED_TIME_IN_THREE_HEART_RATE_ZONES: "set target time in 3 HR zones",
+  FTMS_SET_TARGETED_TIME_IN_FIVE_HEART_RATE_ZONES: "set target time in 5 HR zones",
+  FTMS_SET_INDOOR_BIKE_SIMULATION_PARAMETERS: "set indoor bike simulation",
+  FTMS_SET_WHEEL_CIRCUMFERENCE: "set wheel circumference",
+  FTMS_SPIN_DOWN_CONTROL: "spin down control",
+  FTMS_SET_TARGETED_CADENCE: "set target cadence",
+}
+
+FTMS_RESULT_NAMES = {
+  FTMS_SUCCESS: "success",
+  FTMS_OPCODE_NOT_SUPPORTED: "opcode not supported",
+  FTMS_INVALID_PARAMETER: "invalid parameter",
+  FTMS_CONTROL_NOT_PERMITTED: "control not permitted",
+}
 
 
 def env_bool(name, default=False):
@@ -69,6 +125,8 @@ def env_int(name, default):
 MIN_RESISTANCE_LEVEL = env_int("ANTIFIER_BLUETOOTH_MIN_RESISTANCE", 0)
 MAX_RESISTANCE_LEVEL = env_int("ANTIFIER_BLUETOOTH_MAX_RESISTANCE", 100)
 RESISTANCE_INCREMENT = env_int("ANTIFIER_BLUETOOTH_RESISTANCE_INCREMENT", 1)
+GRADE_RESISTANCE_FACTOR = env_int("ANTIFIER_BLUETOOTH_GRADE_RESISTANCE_FACTOR", 1)
+TRAINER_APPEARANCE = env_int("ANTIFIER_BLUETOOTH_APPEARANCE", 0x0480)
 
 
 def clamp(value, low, high):
@@ -125,6 +183,10 @@ def uint32_bytes(value):
   ])
 
 
+def utf8_value(text):
+  return str(text).encode("utf-8")
+
+
 def fitness_machine_feature_value():
   machine_features = (1 << 1) | (1 << 7) | (1 << 10) | (1 << 14)
   target_setting_features = (1 << 2) | (1 << 3)
@@ -137,6 +199,56 @@ def supported_resistance_level_range_value():
     int16_bytes(MAX_RESISTANCE_LEVEL * 10) +
     uint16_bytes(max(1, RESISTANCE_INCREMENT) * 10)
   )
+
+
+def decode_control_point_value(opcode, request):
+  if opcode == FTMS_SET_TARGET_SPEED and len(request) >= 3:
+    speed = int.from_bytes(request[1:3], byteorder="little", signed=False) / 100.0
+    return "%.2f km/h" % speed
+  if opcode == FTMS_SET_TARGET_INCLINATION and len(request) >= 3:
+    inclination = int.from_bytes(request[1:3], byteorder="little", signed=True) / 10.0
+    return "%.1f%%" % inclination
+  if opcode == FTMS_SET_TARGET_RESISTANCE_LEVEL and len(request) >= 3:
+    resistance = int.from_bytes(request[1:3], byteorder="little", signed=True) / 10.0
+    return "%.1f%%" % resistance
+  if opcode == FTMS_SET_TARGET_POWER and len(request) >= 3:
+    power = int.from_bytes(request[1:3], byteorder="little", signed=True)
+    return "%d W" % power
+  if opcode == FTMS_SET_TARGET_HEART_RATE and len(request) >= 2:
+    return "%d bpm" % request[1]
+  if opcode == FTMS_SET_TARGETED_EXPENDED_ENERGY and len(request) >= 3:
+    energy = int.from_bytes(request[1:3], byteorder="little", signed=False)
+    return "%d kcal" % energy
+  if opcode == FTMS_SET_TARGETED_DISTANCE and len(request) >= 4:
+    distance = int.from_bytes(request[1:4], byteorder="little", signed=False)
+    return "%d m" % distance
+  if opcode == FTMS_SET_TARGETED_TRAINING_TIME and len(request) >= 3:
+    seconds = int.from_bytes(request[1:3], byteorder="little", signed=False)
+    return "%d s" % seconds
+  if opcode == FTMS_SET_INDOOR_BIKE_SIMULATION_PARAMETERS and len(request) >= 7:
+    wind_speed = int.from_bytes(request[1:3], byteorder="little", signed=True) / 1000.0
+    grade = int.from_bytes(request[3:5], byteorder="little", signed=True) / 100.0
+    rolling_resistance = request[5] / 10000.0
+    wind_resistance = request[6] / 100.0
+    return "wind %.3f m/s, grade %.2f%%, crr %.4f, cw %.2f" % (
+      wind_speed,
+      grade,
+      rolling_resistance,
+      wind_resistance,
+    )
+  if opcode == FTMS_SET_WHEEL_CIRCUMFERENCE and len(request) >= 3:
+    circumference = int.from_bytes(request[1:3], byteorder="little", signed=False) / 10.0
+    return "%.1f mm" % circumference
+  if opcode == FTMS_SET_TARGETED_CADENCE and len(request) >= 3:
+    cadence = int.from_bytes(request[1:3], byteorder="little", signed=False) / 2.0
+    return "%.1f rpm" % cadence
+  return ""
+
+
+def indoor_bike_simulation_grade(request):
+  if len(request) < 7:
+    return None
+  return int.from_bytes(request[3:5], byteorder="little", signed=True) / 100.0
 
 
 class BluetoothUnavailableError(RuntimeError):
@@ -233,6 +345,9 @@ class BlueZServer:
     adapter = await self._adapter_proxy()
     properties = adapter.get_interface("org.freedesktop.DBus.Properties")
     await properties.call_set("org.bluez.Adapter1", "Powered", Variant("b", True))
+    await self._set_adapter_property(properties, "Alias", Variant("s", self.name))
+    await self._set_adapter_property(properties, "Pairable", Variant("b", True))
+    await self._set_adapter_property(properties, "Discoverable", Variant("b", True))
 
     self.gatt_manager = adapter.get_interface("org.bluez.GattManager1")
     self.ad_manager = adapter.get_interface("org.bluez.LEAdvertisingManager1")
@@ -261,6 +376,13 @@ class BlueZServer:
     except Exception:
       pass
 
+  async def _set_adapter_property(self, properties, name, value):
+    try:
+      await properties.call_set("org.bluez.Adapter1", name, value)
+    except Exception as exc:
+      if self.debug:
+        print("Could not set Bluetooth adapter %s: %s" % (name, exc))
+
   def notify(self, state):
     self.current_state = state
     if self.indoor_bike_characteristic:
@@ -271,10 +393,18 @@ class BlueZServer:
   def handle_control_point_write(self, value):
     request = bytes(value)
     if not request:
+      self.record_app_command(
+        0x00,
+        FTMS_INVALID_PARAMETER,
+        request,
+        name_text="empty control write",
+        value_text="empty write",
+      )
       return self.control_point_response(0x00, FTMS_INVALID_PARAMETER)
 
     opcode = request[0]
     result = FTMS_SUCCESS
+    value_text = decode_control_point_value(opcode, request)
     if opcode == FTMS_REQUEST_CONTROL:
       self.control_acquired = True
     elif opcode == FTMS_RESET:
@@ -304,10 +434,31 @@ class BlueZServer:
       elif len(request) < 3:
         result = FTMS_INVALID_PARAMETER
       else:
-        self.current_state.power = clamp(
-          int.from_bytes(request[1:3], byteorder="little", signed=True),
-          0,
-          4093,
+        power = int.from_bytes(request[1:3], byteorder="little", signed=True)
+        self.current_state.power = clamp(power, 0, 4093)
+    elif opcode == FTMS_SET_TARGET_INCLINATION:
+      if not self.control_acquired:
+        result = FTMS_CONTROL_NOT_PERMITTED
+      elif len(request) < 3:
+        result = FTMS_INVALID_PARAMETER
+      else:
+        inclination = int.from_bytes(request[1:3], byteorder="little", signed=True) / 10.0
+        self.current_state.resistance = clamp(
+          round(inclination * GRADE_RESISTANCE_FACTOR),
+          MIN_RESISTANCE_LEVEL,
+          MAX_RESISTANCE_LEVEL,
+        )
+    elif opcode == FTMS_SET_INDOOR_BIKE_SIMULATION_PARAMETERS:
+      if not self.control_acquired:
+        result = FTMS_CONTROL_NOT_PERMITTED
+      elif len(request) < 7:
+        result = FTMS_INVALID_PARAMETER
+      else:
+        grade = indoor_bike_simulation_grade(request)
+        self.current_state.resistance = clamp(
+          round(grade * GRADE_RESISTANCE_FACTOR),
+          MIN_RESISTANCE_LEVEL,
+          MAX_RESISTANCE_LEVEL,
         )
     elif opcode in (FTMS_START_OR_RESUME, FTMS_STOP_OR_PAUSE):
       if not self.control_acquired:
@@ -315,9 +466,21 @@ class BlueZServer:
     else:
       result = FTMS_OPCODE_NOT_SUPPORTED
 
+    self.record_app_command(opcode, result, request, value_text=value_text)
     if self.debug:
       print("FTMS control point write %s -> %s" % (request.hex(), result))
     return self.control_point_response(opcode, result)
+
+  def record_app_command(self, opcode, result, request, name_text="", value_text=""):
+    self.current_state.app_command_name = name_text or FTMS_OPCODE_NAMES.get(
+      opcode,
+      "unknown opcode 0x%02x" % opcode,
+    )
+    self.current_state.app_command_value = value_text
+    self.current_state.app_command_result = FTMS_RESULT_NAMES.get(result, "result 0x%02x" % result)
+    self.current_state.app_command_raw = request.hex(" ") if request else "-"
+    self.current_state.app_command_received_at = time.time()
+    self.current_state.app_control_acquired = self.control_acquired
 
   def control_point_response(self, opcode, result):
     response = bytes([FTMS_RESPONSE_CODE, opcode, result])
@@ -356,6 +519,7 @@ class BlueZServer:
       INDOOR_BIKE_DATA_UUID,
       ["notify", "read"],
       indoor_bike_data_value(EmptyState()),
+      notify_min_interval=1.0,
     )
     indoor_bike_path = ftms_path + "/char1"
     self.bus.export(indoor_bike_path, self.indoor_bike_characteristic)
@@ -406,15 +570,40 @@ class BlueZServer:
       HEART_RATE_MEASUREMENT_UUID,
       ["notify", "read"],
       heart_rate_measurement_value(EmptyState()),
+      notify_min_interval=1.0,
     )
     hr_char_path = hr_path + "/char0"
     self.bus.export(hr_char_path, self.heart_rate_characteristic)
     objects[hr_char_path] = [self.heart_rate_characteristic]
 
+    device_info_service = GattServiceInterface(2, DEVICE_INFORMATION_SERVICE_UUID, True)
+    device_info_path = self.app_path + "/service2"
+    self.bus.export(device_info_path, device_info_service)
+    objects[device_info_path] = [device_info_service]
+
+    device_info_values = [
+      (0, MANUFACTURER_NAME_UUID, "Antifier"),
+      (1, MODEL_NUMBER_UUID, self.name),
+      (2, SERIAL_NUMBER_UUID, os.environ.get("ANTIFIER_BLUETOOTH_SERIAL", "antifier-0001")),
+      (3, FIRMWARE_REVISION_UUID, "python-ftms"),
+    ]
+    for index, uuid, value in device_info_values:
+      characteristic = GattCharacteristicInterface(
+        device_info_path,
+        index,
+        uuid,
+        ["read"],
+        utf8_value(value),
+      )
+      path = device_info_path + "/char%d" % index
+      self.bus.export(path, characteristic)
+      objects[path] = [characteristic]
+
   def _export_advertisement(self):
     advertisement = AdvertisementInterface(
       self.name,
       [FTMS_SERVICE_UUID, HEART_RATE_SERVICE_UUID],
+      TRAINER_APPEARANCE,
     )
     self.bus.export(self.adv_path, advertisement)
 
@@ -423,6 +612,12 @@ class EmptyState:
   cadence = 90
   heart_rate = 120
   resistance = 0
+  app_command_name = ""
+  app_command_value = ""
+  app_command_result = ""
+  app_command_raw = ""
+  app_command_received_at = 0.0
+  app_control_acquired = False
 
 
 class ObjectManagerInterface(ServiceInterface):
@@ -468,7 +663,16 @@ class GattServiceInterface(ServiceInterface):
 
 
 class GattCharacteristicInterface(ServiceInterface):
-  def __init__(self, service_path, index, uuid, flags, initial_value, write_handler=None):
+  def __init__(
+    self,
+    service_path,
+    index,
+    uuid,
+    flags,
+    initial_value,
+    write_handler=None,
+    notify_min_interval=0.0,
+  ):
     super().__init__("org.bluez.GattCharacteristic1")
     self.service_path = service_path
     self.path = "%s/char%d" % (service_path, index)
@@ -477,6 +681,8 @@ class GattCharacteristicInterface(ServiceInterface):
     self.value = initial_value
     self.write_handler = write_handler
     self.notifying = False
+    self.notify_min_interval = notify_min_interval
+    self.last_notify_at = 0.0
 
   def get_properties(self):
     return {
@@ -488,8 +694,13 @@ class GattCharacteristicInterface(ServiceInterface):
     }
 
   def set_value(self, value):
-    self.value = bytes(value)
-    if self.notifying:
+    new_value = bytes(value)
+    value_changed = new_value != self.value
+    self.value = new_value
+    now = time.time()
+    interval_elapsed = now - self.last_notify_at >= self.notify_min_interval
+    if self.notifying and (value_changed or interval_elapsed):
+      self.last_notify_at = now
       self.emit_properties_changed({"Value": self.value}, [])
 
   @method()
@@ -537,16 +748,19 @@ class GattCharacteristicInterface(ServiceInterface):
 
 
 class AdvertisementInterface(ServiceInterface):
-  def __init__(self, local_name, service_uuids):
+  def __init__(self, local_name, service_uuids, appearance):
     super().__init__("org.bluez.LEAdvertisement1")
     self.local_name = local_name
     self.service_uuids = service_uuids
+    self.appearance = appearance
 
   def get_properties(self):
     return {
       "Type": Variant("s", "peripheral"),
       "ServiceUUIDs": Variant("as", self.service_uuids),
       "LocalName": Variant("s", self.local_name),
+      "Appearance": Variant("q", self.appearance),
+      "Discoverable": Variant("b", True),
       "Includes": Variant("as", ["tx-power"]),
     }
 
@@ -565,6 +779,14 @@ class AdvertisementInterface(ServiceInterface):
   @dbus_property(access=PropertyAccess.READ)
   def LocalName(self) -> "s":
     return self.local_name
+
+  @dbus_property(access=PropertyAccess.READ)
+  def Appearance(self) -> "q":
+    return self.appearance
+
+  @dbus_property(access=PropertyAccess.READ)
+  def Discoverable(self) -> "b":
+    return True
 
   @dbus_property(access=PropertyAccess.READ)
   def Includes(self) -> "as":
