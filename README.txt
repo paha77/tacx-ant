@@ -1,9 +1,10 @@
 OVERVIEW
-This project broadcasts ANT+ FE-C trainer data and ANT+ heart-rate data through an ANT+ dongle. Power, cadence, and heart rate are controlled interactively from the keyboard.
+This project broadcasts trainer power/cadence data and heart-rate data over ANT+ or Bluetooth. Power, cadence, and heart rate are controlled interactively from the keyboard.
 
 REQUIREMENTS
 - ANT+ dongle, usually a Garmin or Suunto device with hardware ID 0fcf:1009 or 0fcf:1008
 - Linux serial device mapping for the dongle, usually /dev/ttyUSB*
+- Bluetooth mode requires a BLE adapter with peripheral advertising support, BlueZ, and dbus-next
 - Docker operation uses privileged mode and device passthrough
 
 RUN
@@ -12,6 +13,10 @@ python3 antifier.py
 
 Docker:
 docker compose run --rm antifier
+
+ANT+ is the default transport. Select Bluetooth with either:
+python3 antifier.py --transport bluetooth
+ANTIFIER_TRANSPORT=bluetooth python3 antifier.py
 
 KEYBOARD CONTROLS
 When run in an interactive terminal, antifier.py displays a colorful responsive text dashboard with the current broadcast values and controls. It falls back to a compact one-line status when stdout is not a terminal or ANTIFIER_DEBUG=1 is enabled.

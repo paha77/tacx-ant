@@ -11,6 +11,7 @@ services:
         command: ["python3", "antifier.py"]
         volumes:
             - ./:/antifier
+            - /run/dbus:/run/dbus
 #            - /dev/serial/by-id/usb-Dynastream_Innovations_ANT_USB-m_Stick_106-if00-port0:/dev/ttyUSB0
         devices:
             - /dev/serial/by-id/usb-Dynastream_Innovations_ANT_USB-m_Stick_106-if00-port0:/dev/ttyUSB0

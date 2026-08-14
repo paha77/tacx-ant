@@ -6,7 +6,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends usbutils \
  && rm -rf /var/lib/apt/lists/*
 
-RUN python -m pip install --no-cache-dir pyserial pyusb
+RUN python -m pip install --no-cache-dir pyserial pyusb dbus-next
 
 COPY docker-entrypoint.sh /usr/local/bin/antifier-docker-entrypoint
 RUN chmod +x /usr/local/bin/antifier-docker-entrypoint

@@ -14,3 +14,4 @@ build/antifier/warnantifier.txt
 build/antifier/xref-antifier.html
 *.pyc
 trainer.pyc
+docker-compose.override.yml

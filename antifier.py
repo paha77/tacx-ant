@@ -1,3 +1,4 @@
+import argparse
 import os
 import re
 import select
@@ -8,11 +9,19 @@ import termios
 import time
 from dataclasses import dataclass
 
-import ant
+import ble
+
+try:
+  import ant
+  ANT_IMPORT_ERROR = None
+except ImportError as exc:
+  ant = None
+  ANT_IMPORT_ERROR = exc
 
 
 DEBUG = os.environ.get("ANTIFIER_DEBUG", "").lower() in ("1", "true", "yes", "on")
 RUNNING = True
+DEFAULT_TRANSPORT = os.environ.get("ANTIFIER_TRANSPORT", "ant").lower()
 ANSI_RE = re.compile(r"\033\[[0-9;]*m")
 STYLE_TAG_RE = re.compile(r"\{[a-z_]+\}")
 ANSI = {
@@ -86,6 +95,67 @@ class ControlSpec:
   label: str
 
 
+class AntBroadcaster:
+  label = "ANT+ FE-C trainer + heart rate"
+  transport = "ant"
+
+  def __init__(self, debug=False):
+    self.debug = debug
+    self.dev_ant = None
+    self.msg = ""
+
+  def start(self):
+    if ant is None:
+      print("ANT+ mode requires pyserial and pyusb: %s" % ANT_IMPORT_ERROR)
+      return False
+    self.dev_ant, self.msg = ant.get_ant(self.debug)
+    if not self.dev_ant:
+      return False
+    if self.msg:
+      print(self.msg)
+    ant.antreset(self.dev_ant, self.debug)
+    ant.calibrate(self.dev_ant, self.debug)
+    ant.master_channel_config(self.dev_ant, self.debug)
+    ant.second_channel_config(self.dev_ant, self.debug)
+    return True
+
+  def broadcast(self, event_count, state, fec_page, hr_page):
+    ant.send_ant([broadcast_data(0, fec_page)], self.dev_ant, self.debug)
+    ant.send_ant([broadcast_data(1, hr_page)], self.dev_ant, self.debug)
+
+  def stop(self):
+    if not self.dev_ant:
+      return
+    try:
+      ant.antreset(self.dev_ant, self.debug)
+    except Exception as exc:
+      print("Could not reset ANT dongle during shutdown: %s" % exc)
+    try:
+      self.dev_ant.close()
+    except Exception:
+      pass
+
+
+class BluetoothBroadcaster:
+  label = "Bluetooth FTMS trainer + heart rate"
+  transport = "bluetooth"
+
+  def __init__(self, debug=False):
+    self.debug = debug
+    self.broadcaster = ble.BluetoothBroadcaster(debug=debug)
+
+  def start(self):
+    self.broadcaster.start()
+    print("Bluetooth advertising as %s" % self.broadcaster.name)
+    return True
+
+  def broadcast(self, event_count, state, fec_page, hr_page):
+    self.broadcaster.broadcast(event_count, state, fec_page, hr_page)
+
+  def stop(self):
+    self.broadcaster.stop()
+
+
 METRICS = [
   MetricSpec("power", "Power", "W", 500, "bright_yellow"),
   MetricSpec("cadence", "Cadence", "rpm", 130, "bright_cyan"),
@@ -151,10 +221,12 @@ def bar(value, high, width):
 
 
 class TerminalDashboard:
-  def __init__(self, metrics, controls, enabled=None):
+  def __init__(self, metrics, controls, enabled=None, broadcast_label=None, transport=None):
     self.metrics = metrics
     self.controls = controls
     self.enabled = (sys.stdout.isatty() and not DEBUG) if enabled is None else enabled
+    self.broadcast_label = broadcast_label or "FE-C trainer + heart rate"
+    self.transport = transport or "ant"
     self.last_render = ""
     self.last_size = None
     self.started = time.time()
@@ -170,8 +242,8 @@ class TerminalDashboard:
   def render(self, state, event_count, force=False):
     if not self.enabled:
       print(
-        "\rPower %4d W | Cadence %3d rpm | HR %3d bpm   " %
-        (state.power, state.cadence, state.heart_rate),
+        "\rMode %-9s | Power %4d W | Cadence %3d rpm | HR %3d bpm   " %
+        (self.transport.upper(), state.power, state.cadence, state.heart_rate),
         end="",
         flush=True,
       )
@@ -190,13 +262,14 @@ class TerminalDashboard:
     width = max(20, columns)
     uptime = int(time.time() - self.started)
     title = "ANTIFIER"
-    subtitle = "broadcasting FE-C trainer + heart rate"
+    subtitle = "broadcasting %s" % self.broadcast_label
     status = "4 Hz  event %03d  uptime %02d:%02d" % (event_count, uptime // 60, uptime % 60)
 
     lines = [
       self.rule(width, "="),
       self.center(title, width),
       self.center(subtitle, width),
+      self.transport_switch(width),
       self.center(status, width),
       self.rule(width, "-"),
     ]
@@ -263,6 +336,10 @@ class TerminalDashboard:
         lines.append("  %-5s %s" % (control.keys, control.label))
     return lines
 
+  def transport_switch(self, width):
+    switch = "[ ANT+ ]=== [ Bluetooth ]"
+    return self.center(switch, width)
+
   def rule(self, width, char):
     return char * width
 
@@ -281,7 +358,9 @@ class TerminalDashboard:
       return self.colorize_tagged_metric_line(line)
     if line.strip() == "ANTIFIER":
       return self.style(line, "bold", "bright_green")
-    if "broadcasting FE-C" in line:
+    if "[ ANT+ ]" in line and "[ Bluetooth ]" in line:
+      return self.colorize_transport_switch(line)
+    if "broadcasting " in line:
       return self.style(line, "bright_cyan")
     if "4 Hz" in line and "uptime" in line:
       return self.style(line, "dim")
@@ -290,6 +369,14 @@ class TerminalDashboard:
     if line.startswith("  "):
       return self.colorize_control_line(line)
     return line
+
+  def colorize_transport_switch(self, line):
+    ant_active = self.transport in ("ant", "ant+")
+    ant_style = ("bold", "bright_green") if ant_active else ("dim", "bright_black")
+    bluetooth_style = ("bold", "bright_cyan") if not ant_active else ("dim", "bright_black")
+    line = line.replace("[ ANT+ ]", self.style("[ ANT+ ]", *ant_style))
+    line = line.replace("[ Bluetooth ]", self.style("[ Bluetooth ]", *bluetooth_style))
+    return line.replace("=", self.style("=", "bright_black"))
 
   def colorize_tagged_metric_line(self, line):
     parts = STYLE_TAG_RE.split(line)
@@ -488,7 +575,7 @@ def print_controls():
   print("")
 
 
-def run_broadcaster(dev_ant):
+def run_broadcaster(broadcaster):
   state = BroadcastState()
   event_count = 0
   accumulated_power = 0
@@ -501,7 +588,12 @@ def run_broadcaster(dev_ant):
     "beat_count": 0,
     "toggle": 0,
   }
-  dashboard = TerminalDashboard(METRICS, CONTROLS)
+  dashboard = TerminalDashboard(
+    METRICS,
+    CONTROLS,
+    broadcast_label=broadcaster.label,
+    transport=broadcaster.transport,
+  )
   last_status_at = 0
 
   if not dashboard.enabled:
@@ -532,8 +624,8 @@ def run_broadcaster(dev_ant):
         else:
           fec_page = build_fec_trainer_page(event_count, state, accumulated_power)
 
-        ant.send_ant([broadcast_data(0, fec_page)], dev_ant, DEBUG)
-        ant.send_ant([broadcast_data(1, build_hr_page(event_count, state, hr_state))], dev_ant, DEBUG)
+        hr_page = build_hr_page(event_count, state, hr_state)
+        broadcaster.broadcast(event_count, state, fec_page, hr_page)
 
         if display_dirty or now - last_status_at >= 1:
           dashboard.render(state, event_count, force=display_dirty)
@@ -548,13 +640,41 @@ def run_broadcaster(dev_ant):
     print("")
 
 
-def main():
-  dev_ant, msg = ant.get_ant(DEBUG)
-  if not dev_ant:
+def parse_args(argv):
+  parser = argparse.ArgumentParser(description="Broadcast interactive trainer and heart-rate values.")
+  parser.add_argument(
+    "--transport",
+    choices=("ant", "ant+", "bluetooth", "ble"),
+    default=DEFAULT_TRANSPORT,
+    help="Broadcast transport. Defaults to ANTIFIER_TRANSPORT or ant.",
+  )
+  return parser.parse_args(argv)
+
+
+def create_broadcaster(transport):
+  transport = transport.lower()
+  if transport in ("ant", "ant+"):
+    return AntBroadcaster(DEBUG)
+  if transport in ("bluetooth", "ble"):
+    return BluetoothBroadcaster(DEBUG)
+  raise ValueError("Unsupported transport: %s" % transport)
+
+
+def main(argv=None):
+  args = parse_args(sys.argv[1:] if argv is None else argv)
+  try:
+    broadcaster = create_broadcaster(args.transport)
+  except ValueError as exc:
+    print(str(exc))
     return 1
 
-  if msg:
-    print(msg)
+  try:
+    if not broadcaster.start():
+      return 1
+  except ble.BluetoothUnavailableError as exc:
+    print("Bluetooth unavailable: %s" % exc)
+    return 1
+
   print("HR sensor identity: device %d, manufacturer %d, model %d, serial %d" % (
     HR_DEVICE_NUMBER & 0xffff,
     HR_MANUFACTURER_ID & 0xff,
@@ -563,20 +683,9 @@ def main():
   ))
 
   try:
-    ant.antreset(dev_ant, DEBUG)
-    ant.calibrate(dev_ant, DEBUG)
-    ant.master_channel_config(dev_ant, DEBUG)
-    ant.second_channel_config(dev_ant, DEBUG)
-    run_broadcaster(dev_ant)
+    run_broadcaster(broadcaster)
   finally:
-    try:
-      ant.antreset(dev_ant, DEBUG)
-    except Exception as exc:
-      print("Could not reset ANT dongle during shutdown: %s" % exc)
-    try:
-      dev_ant.close()
-    except Exception:
-      pass
+    broadcaster.stop()
 
   return 0
 

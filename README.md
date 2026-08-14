@@ -1,5 +1,5 @@
 # antifier
-This project broadcasts ANT+ FE-C trainer data and ANT+ heart-rate data through an ANT+ dongle. Power, cadence, and heart rate are controlled interactively from the keyboard.
+This project broadcasts interactive trainer power/cadence data and heart-rate data over ANT+ or Bluetooth. Power, cadence, and heart rate are controlled interactively from the keyboard.
 Home page: https://github.com/john-38787364/antifier
 
 ## Resetting USB after usage
@@ -15,6 +15,16 @@ Start the broadcaster with
 Or run it in Docker with
 
 `docker compose run --rm antifier`
+
+ANT+ is the default transport. Select the transport with either `--transport` or `ANTIFIER_TRANSPORT`:
+
+```bash
+python3 antifier.py --transport ant
+python3 antifier.py --transport bluetooth
+ANTIFIER_TRANSPORT=bluetooth python3 antifier.py
+```
+
+Bluetooth mode advertises a BLE Fitness Machine Service plus Heart Rate Service through BlueZ, then notifies connected apps with the same interactive power, cadence, and heart-rate values as the ANT+ stack. It requires a Bluetooth adapter that supports BLE peripheral advertising, a running BlueZ service, and the `dbus-next` Python package. The advertised local name defaults to `Antifier` and can be changed with `ANTIFIER_BLUETOOTH_NAME`.
 
 ## Keyboard controls
 
@@ -57,4 +67,4 @@ If Zwift has already paired the old entry, unpair/forget it or restart Zwift aft
 
 ## TODO
 
-* Investigate Bluetooth FTMS broadcasting as a future option for custom human-readable device names such as `Peter's ANT+ dongle`.
+* Verify Bluetooth FTMS behavior against target apps such as Zwift and TrainerRoad on real hardware.
