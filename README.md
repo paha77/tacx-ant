@@ -24,7 +24,9 @@ python3 antifier.py --transport bluetooth
 ANTIFIER_TRANSPORT=bluetooth python3 antifier.py
 ```
 
-Bluetooth mode advertises a BLE Fitness Machine Service plus Heart Rate Service through BlueZ, then notifies connected apps with the same interactive power, cadence, and heart-rate values as the ANT+ stack. It requires a Bluetooth adapter that supports BLE peripheral advertising, a running BlueZ service, and the `dbus-next` Python package. The advertised local name defaults to `Antifier` and can be changed with `ANTIFIER_BLUETOOTH_NAME`.
+Bluetooth mode advertises a BLE Fitness Machine Service plus Heart Rate Service through BlueZ, then notifies connected apps with the same interactive power, cadence, resistance, and heart-rate values as the ANT+ stack. It requires a Bluetooth adapter that supports BLE peripheral advertising, a running BlueZ service, and the `dbus-next` Python package. The advertised local name defaults to `Antifier` and can be changed with `ANTIFIER_BLUETOOTH_NAME`.
+
+In Bluetooth mode, Antifier also exposes the FTMS Fitness Machine Feature, Supported Resistance Level Range, Fitness Machine Control Point, and Fitness Machine Status characteristics. Apps can request control and set target resistance through the control point. Resistance defaults to a 0-100% range in 1% steps and can be changed with `ANTIFIER_BLUETOOTH_MIN_RESISTANCE`, `ANTIFIER_BLUETOOTH_MAX_RESISTANCE`, and `ANTIFIER_BLUETOOTH_RESISTANCE_INCREMENT`.
 
 ## Keyboard controls
 
@@ -36,7 +38,9 @@ When run in an interactive terminal, `antifier.py` displays a colorful responsiv
 * s: Decrease cadence by 1 rpm
 * e: Increase heart rate by 1 beat/minute
 * d: Decrease heart rate by 1 beat/minute
-* r: Reset to 150 W, 90 rpm, 120 bpm
+* t: Increase resistance by 1%
+* g: Decrease resistance by 1%
+* r: Reset to 150 W, 90 rpm, 120 bpm, 0% resistance
 * x: Quit
 
 ## Zwift pairing identity

@@ -78,6 +78,7 @@ class BroadcastState:
   power: int = 150
   cadence: int = 90
   heart_rate: int = 120
+  resistance: int = 0
 
 
 @dataclass(frozen=True)
@@ -137,7 +138,7 @@ class AntBroadcaster:
 
 
 class BluetoothBroadcaster:
-  label = "Bluetooth FTMS trainer + heart rate"
+  label = "Bluetooth FTMS controllable trainer + heart rate"
   transport = "bluetooth"
 
   def __init__(self, debug=False):
@@ -160,12 +161,14 @@ METRICS = [
   MetricSpec("power", "Power", "W", 500, "bright_yellow"),
   MetricSpec("cadence", "Cadence", "rpm", 130, "bright_cyan"),
   MetricSpec("heart_rate", "Heart rate", "bpm", 200, "bright_red"),
+  MetricSpec("resistance", "Resistance", "%", 100, "bright_magenta"),
 ]
 
 CONTROLS = [
   ControlSpec("q/a", "power +/- 5 W"),
   ControlSpec("w/s", "cadence +/- 1 rpm"),
   ControlSpec("e/d", "heart rate +/- 1 bpm"),
+  ControlSpec("t/g", "resistance +/- 1%"),
   ControlSpec("r", "reset values"),
   ControlSpec("x", "quit"),
 ]
@@ -242,8 +245,8 @@ class TerminalDashboard:
   def render(self, state, event_count, force=False):
     if not self.enabled:
       print(
-        "\rMode %-9s | Power %4d W | Cadence %3d rpm | HR %3d bpm   " %
-        (self.transport.upper(), state.power, state.cadence, state.heart_rate),
+        "\rMode %-9s | Power %4d W | Cadence %3d rpm | HR %3d bpm | Resistance %3d%%   " %
+        (self.transport.upper(), state.power, state.cadence, state.heart_rate, state.resistance),
         end="",
         flush=True,
       )
@@ -416,7 +419,7 @@ class TerminalDashboard:
     return "".join(styled)
 
   def colorize_control_line(self, line):
-    return re.sub(r"(?<!\S)(q/a|w/s|e/d|r|x)(?!\S)", self.colorize_control_key, line)
+    return re.sub(r"(?<!\S)(q/a|w/s|e/d|t/g|r|x)(?!\S)", self.colorize_control_key, line)
 
   def colorize_control_key(self, match):
     return self.style(match.group(1), "bold", "bright_yellow")
@@ -557,10 +560,15 @@ def apply_key(state, key):
     state.heart_rate = clamp(state.heart_rate + 1, 0, 255)
   elif key == "d":
     state.heart_rate = clamp(state.heart_rate - 1, 0, 255)
+  elif key == "t":
+    state.resistance = clamp(state.resistance + 1, 0, 100)
+  elif key == "g":
+    state.resistance = clamp(state.resistance - 1, 0, 100)
   elif key == "r":
     state.power = 150
     state.cadence = 90
     state.heart_rate = 120
+    state.resistance = 0
   elif key in ("x", "\x03"):
     RUNNING = False
 
@@ -570,7 +578,8 @@ def print_controls():
   print("  q/a  power +/- 5 W")
   print("  w/s  cadence +/- 1 rpm")
   print("  e/d  heart rate +/- 1 bpm")
-  print("  r    reset to 150 W, 90 rpm, 120 bpm")
+  print("  t/g  resistance +/- 1%")
+  print("  r    reset to 150 W, 90 rpm, 120 bpm, 0% resistance")
   print("  x    quit")
   print("")
 
